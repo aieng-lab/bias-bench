@@ -22,13 +22,13 @@ parser.add_argument(
     action="store",
     type=str,
     default="BertForMaskedLM",
-    choices=[
-        "BertForMaskedLM",
-        "AlbertForMaskedLM",
-        "RobertaForMaskedLM",
-        "GPT2LMHeadModel",
-    ],
-    help="Model to evalute (e.g., BertForMaskedLM). Typically, these correspond to a HuggingFace "
+    #choices=[
+    #    "BertForMaskedLM",
+    #    "AlbertForMaskedLM",
+    #    "RobertaForMaskedLM",
+    #    "GPT2LMHeadModel",
+    #],
+    help="Model to evaluate (e.g., BertForMaskedLM). Typically, these correspond to a HuggingFace "
     "class.",
 )
 parser.add_argument(
@@ -36,7 +36,7 @@ parser.add_argument(
     action="store",
     type=str,
     default="bert-base-uncased",
-    choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
+    #choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
     help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
     "model is instantiated.",
 )
@@ -75,7 +75,8 @@ if __name__ == "__main__":
 
     model = getattr(models, args.model)(args.model_name_or_path)
     model.eval()
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer_name = 'roberta-large' if 'roberta-large' in args.model_name_or_path else args.model_name_or_path
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
 
     runner = StereoSetRunner(
         intrasentence_model=model,

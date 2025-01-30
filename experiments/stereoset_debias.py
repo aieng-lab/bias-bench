@@ -24,28 +24,6 @@ parser.add_argument(
     action="store",
     type=str,
     default="SentenceDebiasForMaskedLM",
-    choices=[
-        "SentenceDebiasBertForMaskedLM",
-        "SentenceDebiasAlbertForMaskedLM",
-        "SentenceDebiasRobertaForMaskedLM",
-        "SentenceDebiasGPT2LMHeadModel",
-        "INLPBertForMaskedLM",
-        "INLPAlbertForMaskedLM",
-        "INLPRobertaForMaskedLM",
-        "INLPGPT2LMHeadModel",
-        "CDABertForMaskedLM",
-        "CDAAlbertForMaskedLM",
-        "CDARobertaForMaskedLM",
-        "CDAGPT2LMHeadModel",
-        "DropoutBertForMaskedLM",
-        "DropoutAlbertForMaskedLM",
-        "DropoutRobertaForMaskedLM",
-        "DropoutGPT2LMHeadModel",
-        "SelfDebiasGPT2LMHeadModel",
-        "SelfDebiasBertForMaskedLM",
-        "SelfDebiasAlbertForMaskedLM",
-        "SelfDebiasRobertaForMaskedLM",
-    ],
     help="Model to evalute (e.g., SentenceDebiasBertForMaskedLM).",
 )
 parser.add_argument(
@@ -53,7 +31,7 @@ parser.add_argument(
     action="store",
     type=str,
     default="bert-base-uncased",
-    choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
+    #choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
     help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
     "model is instantiated.",
 )
@@ -86,6 +64,7 @@ parser.add_argument(
     "--bias_type",
     action="store",
     type=str,
+    default='gender',
     choices=["gender", "religion", "race"],
     help="The type of bias to mitigate.",
 )
@@ -140,7 +119,8 @@ if __name__ == "__main__":
     else:
         model.eval()
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer_name = 'roberta-large' if 'roberta-large' in args.model_name_or_path else args.model_name_or_path
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
 
     # Use self-debiasing name.
     bias_type = args.bias_type

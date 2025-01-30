@@ -1,6 +1,9 @@
 import csv
 import difflib
 import warnings
+from contextlib import nullcontext
+
+from scipy.stats import norm
 
 # Temporarily ignore pandas deprecation warnings.
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -44,6 +47,8 @@ class CrowSPairsRunner:
         is_generative=False,
         is_self_debias=False,
         bias_type=None,
+        n_samples=1000,
+        confidence_level=0.95,
     ):
         """Initializes CrowS-Pairs benchmark runner.
 
@@ -61,6 +66,10 @@ class CrowSPairsRunner:
         self._is_self_debias = is_self_debias
         # CrowS-Pairs labels race examples with "race-color".
         self._bias_type = bias_type if bias_type != "race" else "race-color"
+        self.n_samples = n_samples
+        self.confidence_level = confidence_level
+
+        self.cache = {}
 
     def __call__(self):
         if self._is_generative:
@@ -79,6 +88,29 @@ class CrowSPairsRunner:
         else:
             self._model.to(device)
 
+        score = self.__likelihood_score(df_data)
+
+        # bootstrap the data
+        bootstrap_scores = []
+        for i in tqdm(range(self.n_samples), desc="Bootstrapping"):
+            bs_score = self.__likelihood_score(df_data.sample(frac=1, replace=True, random_state=i), enable_tqdm=False)
+            bootstrap_scores.append(bs_score)
+
+        # Step 1: Compute the mean
+        mean_score = np.mean(bootstrap_scores)
+
+        # Step 2: Compute the standard error (SE)
+        std_error = np.std(bootstrap_scores, ddof=1)  # Use ddof=1 for sample std dev
+        margin_of_error = norm.ppf(1 - (1 - self.confidence_level) / 2) * std_error
+
+        return {
+            'score': score,
+            'ci_mean': mean_score,
+            'ci_margin': margin_of_error,
+            'ci_scores': bootstrap_scores,
+        }
+
+    def __likelihood_score(self, df_data, enable_tqdm=True):
         # Score each sentence.
         # Each row in the dataframe has the sentid and score for pro and anti-stereo.
         df_score = pd.DataFrame(
@@ -99,7 +131,8 @@ class CrowSPairsRunner:
         N = 0
         neutral = 0
         total = len(df_data.index)
-        with tqdm(total=total) as pbar:
+        progress_bar = tqdm(total=total) if enable_tqdm else nullcontext()
+        with progress_bar as pbar:
             for index, data in df_data.iterrows():
                 direction = data["direction"]
                 bias = data["bias_type"]
@@ -108,31 +141,37 @@ class CrowSPairsRunner:
 
                 sent1, sent2 = data["sent1"], data["sent2"]
 
-                sent1_token_ids = self._tokenizer.encode(sent1, return_tensors="pt").to(
-                    device
-                )
-                sent2_token_ids = self._tokenizer.encode(sent2, return_tensors="pt").to(
-                    device
-                )
+                if (sent1, sent2) in self.cache:
+                    score1, score2 = self.cache[(sent1, sent2)]
+                else:
+                    sent1_token_ids = self._tokenizer.encode(sent1, return_tensors="pt").to(
+                        device
+                    )
+                    sent2_token_ids = self._tokenizer.encode(sent2, return_tensors="pt").to(
+                        device
+                    )
 
-                # Get spans of non-changing tokens
-                template1, template2 = _get_span(
-                    sent1_token_ids[0], sent2_token_ids[0], "diff"
-                )
+                    # Get spans of non-changing tokens
+                    template1, template2 = _get_span(
+                        sent1_token_ids[0], sent2_token_ids[0], "diff"
+                    )
 
-                if not template1 or not template2:
-                    print(f"Skipping example {index}.")
-                    continue
+                    if not template1 or not template2:
+                        print(f"Skipping example {index}.")
+                        continue
 
-                score1 = self._average_log_probability(sent1_token_ids, template1)
-                score2 = self._average_log_probability(sent2_token_ids, template2)
+                    score1 = self._average_log_probability(sent1_token_ids, template1)
+                    score2 = self._average_log_probability(sent2_token_ids, template2)
 
-                score1 = round(score1, 3)
-                score2 = round(score2, 3)
+                    score1 = round(score1, 3)
+                    score2 = round(score2, 3)
+
+                    self.cache[(sent1, sent2)] = (score1, score2)
 
                 N += 1
                 pair_score = 0
-                pbar.update(1)
+                if enable_tqdm:
+                    pbar.update(1)
                 if score1 == score2:
                     neutral += 1
                 else:
@@ -159,31 +198,30 @@ class CrowSPairsRunner:
                     sent_more_score = score2
                     sent_less_score = score1
 
-                df_score = df_score.append(
-                    {
-                        "sent_more": sent_more,
-                        "sent_less": sent_less,
-                        "sent_more_score": sent_more_score,
-                        "sent_less_score": sent_less_score,
-                        "score": pair_score,
-                        "stereo_antistereo": direction,
-                        "bias_type": bias,
-                    },
-                    ignore_index=True,
-                )
+                df_item = pd.DataFrame({
+                        "sent_more": [sent_more],
+                        "sent_less": [sent_less],
+                        "sent_more_score": [sent_more_score],
+                        "sent_less_score": [sent_less_score],
+                        "score": [pair_score],
+                        "stereo_antistereo": [direction],
+                        "bias_type": [bias],
+                    })
+                df_score = pd.concat([df_score, df_item], ignore_index=True)
 
-        print("=" * 100)
-        print("Total examples:", N)
-        print("Metric score:", round((stereo_score + antistereo_score) / N * 100, 2))
-        print("Stereotype score:", round(stereo_score / total_stereo * 100, 2))
-        if antistereo_score != 0:
-            print(
-                "Anti-stereotype score:",
-                round(antistereo_score / total_antistereo * 100, 2),
-            )
-        print("Num. neutral:", round(neutral / N * 100, 2))
-        print("=" * 100)
-        print()
+        if enable_tqdm:
+            print("=" * 100)
+            print("Total examples:", N)
+            print("Metric score:", round((stereo_score + antistereo_score) / N * 100, 2))
+            print("Stereotype score:", round(stereo_score / total_stereo * 100, 2))
+            if antistereo_score != 0:
+                print(
+                    "Anti-stereotype score:",
+                    round(antistereo_score / total_antistereo * 100, 2),
+                )
+            print("Num. neutral:", round(neutral / N * 100, 2))
+            print("=" * 100)
+            print()
 
         return round((stereo_score + antistereo_score) / N * 100, 2)
 
@@ -259,18 +297,17 @@ class CrowSPairsRunner:
                     sent_more_score = score2
                     sent_less_score = score1
 
-                df_score = df_score.append(
-                    {
-                        "sent_more": sent_more,
-                        "sent_less": sent_less,
-                        "sent_more_score": sent_more_score,
-                        "sent_less_score": sent_less_score,
-                        "score": pair_score,
-                        "stereo_antistereo": direction,
-                        "bias_type": bias,
-                    },
-                    ignore_index=True,
-                )
+                df_item = pd.DataFrame({
+                        "sent_more": [sent_more],
+                        "sent_less": [sent_less],
+                        "sent_more_score": [sent_more_score],
+                        "sent_less_score": [sent_less_score],
+                        "score": [pair_score],
+                        "stereo_antistereo": [direction],
+                        "bias_type": [bias],
+                    })
+
+                df_score = pd.concat([df_score, df_item], ignore_index=True)
 
         print("=" * 100)
         print("Total examples:", N)
@@ -410,13 +447,13 @@ class CrowSPairsRunner:
                     sent1 = row["sent_less"]
                     sent2 = row["sent_more"]
 
-                df_item = {
-                    "sent1": sent1,
-                    "sent2": sent2,
-                    "direction": direction,
-                    "bias_type": bias_type,
-                }
-                df_data = df_data.append(df_item, ignore_index=True)
+                df_item = pd.DataFrame({
+                    "sent1": [sent1],
+                    "sent2": [sent2],
+                    "direction": [direction],
+                    "bias_type": [bias_type],
+                })
+                df_data = pd.concat([df_data, df_item], ignore_index=True)
 
         return df_data
 

@@ -51,6 +51,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from bias_bench.util import CustomTrainingArguments
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0")
@@ -263,7 +264,6 @@ def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, TrainingArguments)
     )
@@ -413,7 +413,7 @@ def main():
             f"Setting dropout hyperparameters for: {model_args.model_name_or_path}."
         )
 
-        if config.model_type in ["bert", "roberta"]:
+        if config.model_type in ["bert", "roberta", "distilbert"]:
             config.hidden_dropout_prob = 0.20
             config.attention_probs_dropout_prob = 0.15
         else:

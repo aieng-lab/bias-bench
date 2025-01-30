@@ -14,12 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Finetuning the library models for sequence classification on GLUE."""
+import json
 # You can also adapt this script on your own text classification task. Pointers for this are left as comments.
 
 import logging
 import os
 import random
+import shutil
 import sys
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -46,8 +49,8 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from bias_bench.model import models
-
+from bias_bench.model import models, load_tokenizer
+from bias_bench.util import CustomTrainingArguments
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.16.0")
@@ -155,6 +158,11 @@ class DataTrainingArguments:
         metadata={"help": "Directory where all persistent data will be stored."},
     )
 
+    early_stopping: str = field(
+        default=False,
+        metadata={"help": "Whether to use early stopping or not."},
+    )
+
     def __post_init__(self):
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
@@ -249,13 +257,16 @@ class ModelArguments:
     )
 
 
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
+    start_time = time.time()
+
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, TrainingArguments)
+        (ModelArguments, DataTrainingArguments, CustomTrainingArguments)
     )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
@@ -265,6 +276,32 @@ def main():
         )
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
+    # check if results are already computed
+    result_file = f'{training_args.output_dir}/eval_results.json'
+    if os.path.exists(result_file):
+        data = json.load(open(result_file))
+        if 'eval_accuracy' in data:
+            score = data['eval_accuracy']
+        elif 'eval_matthews_correlation' in data:
+            score = data['eval_matthews_correlation']
+        elif 'eval_pearson' in data:
+            score = data['eval_pearson']
+        else:
+            raise ValueError("No score found in the results file", result_file, data)
+        print('Score:', score)
+        if score == 0.0:
+            print('Result 0.0 for ', result_file)
+
+            training_args.seed = training_args.seed + 10
+            training_args.output_dir = training_args.output_dir + f'_{training_args.seed}'
+            print('New output dir:', training_args.output_dir)
+        else:
+            print('Results already computed', result_file)
+            return
+    else:
+        print(result_file)
+
 
     # Setup logging
     logging.basicConfig(
@@ -401,25 +438,22 @@ def main():
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
+
+    print(model_args.model)
+    model_name_or_path = model_args.model_name_or_path
+
     config = AutoConfig.from_pretrained(
         model_args.config_name
         if model_args.config_name
-        else model_args.model_name_or_path,
+        else model_name_or_path,
         num_labels=num_labels,
         finetuning_task=data_args.task_name,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name
-        if model_args.tokenizer_name
-        else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        use_fast=model_args.use_fast_tokenizer,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+
+    tokenizer = load_tokenizer(model_args.model_name_or_path)
 
     # Load the model.
     kwargs = {}
@@ -600,6 +634,55 @@ def main():
     else:
         data_collator = None
 
+    training_args.save_strategy = 'no'
+
+    from transformers import EarlyStoppingCallback
+
+    eval_fraction = 0.5  # Evaluate after 10% of the dataset
+
+    # Calculate eval_steps
+    print(len(eval_dataset), training_args.per_device_eval_batch_size)
+    eval_steps = max(1, int(len(eval_dataset) * eval_fraction // training_args.per_device_eval_batch_size))
+
+    print(f"Evaluation steps set to: {eval_steps}")
+    # Define the early stopping callback
+    early_stopping_callback = EarlyStoppingCallback(
+        early_stopping_patience=4,  # Number of evaluation steps with no improvement
+        early_stopping_threshold=0.0  # Minimum change to qualify as an improvement
+    )
+
+    if data_args.early_stopping:
+        def copy_and_update_training_args(original_args, **overrides):
+            """
+            Create a new TrainingArguments instance by copying all properties from an existing one
+            and overriding specified values, excluding internal properties.
+            """
+            # Copy all properties from the original TrainingArguments object
+            original_args_dict = vars(original_args)
+
+            # Filter out internal properties that cannot be passed to the constructor
+            EXCLUDED = {'distributed_state', 'deepspeed_plugin'}
+            filtered_args_dict = {k: v for k, v in original_args_dict.items() if not k.startswith("_") and k not in EXCLUDED}
+
+            # Update with any provided overrides
+            filtered_args_dict.update(overrides)
+
+            # Return a new TrainingArguments instance with the filtered properties
+            return TrainingArguments(**filtered_args_dict)
+
+        print("Using early stopping")
+
+        training_args = copy_and_update_training_args(
+            training_args,
+            save_strategy="steps",
+            evaluation_strategy="steps",
+            eval_steps=eval_steps,
+            save_steps=eval_steps,
+            load_best_model_at_end=True,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
+        )
+
     # Initialize our Trainer
     trainer = Trainer(
         model=model,
@@ -627,15 +710,17 @@ def main():
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
-        trainer.save_model()  # Saves the tokenizer too for easy upload
-
+        #trainer.save_model()  # Saves the tokenizer too for easy upload
+        metrics['time'] = time.time() - start_time
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
-        trainer.save_state()
+        #trainer.save_state()
 
     # Evaluation
+    raw_eval_dataset = eval_dataset
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
+        eval_start_time = time.time()
 
         # Loop to handle MNLI double evaluation (matched, mis-matched)
         tasks = [data_args.task_name]
@@ -643,6 +728,9 @@ def main():
         if data_args.task_name == "mnli":
             tasks.append("mnli-mm")
             eval_datasets.append(raw_datasets["validation_mismatched"])
+            #todo the current approach results in mnli-mm results to be saved in the same file as mnli results,
+            # and due to the order the mnli-mm results overwrite the mnli results, but mnli is typically reported in GLUE
+            # this is not important if the bootsrap is used as the raw results are used then (with unique file names)
 
         for eval_dataset, task in zip(eval_datasets, tasks):
             metrics = trainer.evaluate(eval_dataset=eval_dataset)
@@ -653,6 +741,8 @@ def main():
                 else len(eval_dataset)
             )
             metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+            metrics['time'] = time.time() - eval_start_time
+            metrics['total_time'] = time.time() - start_time
 
             trainer.log_metrics("eval", metrics)
             trainer.save_metrics("eval", metrics)
@@ -693,6 +783,40 @@ def main():
                             item = label_list[item]
                             writer.write(f"{index}\t{item}\n")
 
+        logger.info("*** Predict Eval ***")
+        # Loop to handle MNLI double evaluation (matched, mis-matched)
+        tasks = [data_args.task_name]
+        predict_datasets = [raw_eval_dataset]
+        if data_args.task_name == "mnli":
+            tasks.append("mnli-mm")
+            predict_datasets.append(raw_datasets["validation_mismatched"])
+
+        for predict_dataset, task in zip(predict_datasets, tasks):
+            # Removing the `label` columns because it contains -1 and Trainer won't like that.
+            predict_dataset = predict_dataset.remove_columns("label")
+            predictions = trainer.predict(
+                predict_dataset, metric_key_prefix="predict"
+            ).predictions
+            predictions = (
+                np.squeeze(predictions)
+                if is_regression
+                else np.argmax(predictions, axis=1)
+            )
+
+            output_predict_file = os.path.join(
+                training_args.output_dir, f"eval_results_{task}.txt"
+            )
+            if trainer.is_world_process_zero():
+                with open(output_predict_file, "w") as writer:
+                    logger.info(f"***** Eval Predict results {task} *****")
+                    writer.write("index\tprediction\n")
+                    for index, item in enumerate(predictions):
+                        if is_regression:
+                            writer.write(f"{index}\t{item:3.3f}\n")
+                        else:
+                            item = label_list[item]
+                            writer.write(f"{index}\t{item}\n")
+
     kwargs = {
         "finetuned_from": model_args.model_name_or_path,
         "tasks": "text-classification",
@@ -703,11 +827,21 @@ def main():
         kwargs["dataset_args"] = data_args.task_name
         kwargs["dataset"] = f"GLUE {data_args.task_name.upper()}"
 
+    # delete all checkpoints at the end
+    if training_args.do_train:
+        for f in os.listdir(training_args.output_dir):
+            checkpoint_path = os.path.join(training_args.output_dir, f)
+
+            # Check if the directory starts with 'checkpoint-' and is indeed a directory
+            if f.startswith("checkpoint-") and os.path.isdir(checkpoint_path):
+                print(f"Deleting checkpoint: {checkpoint_path}")
+                shutil.rmtree(checkpoint_path)  # Delete the checkpoint directory
+
+
     if training_args.push_to_hub:
         trainer.push_to_hub(**kwargs)
     else:
         trainer.create_model_card(**kwargs)
-
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)

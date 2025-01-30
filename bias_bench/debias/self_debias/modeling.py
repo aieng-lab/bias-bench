@@ -12,7 +12,7 @@ from transformers import (
     AutoModelForMaskedLM,
     RobertaForMaskedLM,
     BertForMaskedLM,
-    AlbertForMaskedLM,
+    AlbertForMaskedLM, DistilBertForMaskedLM,
 )
 
 from bias_bench.debias.self_debias.generation import (
@@ -131,25 +131,31 @@ class MaskedLMWrapper(ABC):
 
         mask_positions = input_ids_repeated == self._tokenizer.mask_token_id
 
-        position_ids = attention_mask.long().cumsum(-1)
-        if isinstance(self._model, RobertaForMaskedLM):
-            position_ids += self._model.base_model.embeddings.padding_idx
-        elif isinstance(self._model, BertForMaskedLM):
-            position_ids -= 1
-        elif isinstance(self._model, AlbertForMaskedLM):
-            position_ids -= 1
+        # Check if the model supports `position_ids`
+        if isinstance(self._model, (RobertaForMaskedLM, BertForMaskedLM, AlbertForMaskedLM)):
+            position_ids = attention_mask.long().cumsum(-1)
+            if isinstance(self._model, RobertaForMaskedLM):
+                position_ids += self._model.base_model.embeddings.padding_idx
+            elif isinstance(self._model, (BertForMaskedLM, AlbertForMaskedLM)):
+                position_ids -= 1
+
+            position_ids.masked_fill_(attention_mask == 0, 1)
+
+            outputs = self._model(
+                input_ids=input_ids_repeated,
+                attention_mask=attention_mask,
+                position_ids=position_ids,  # Include `position_ids` for these models
+            )
+        elif isinstance(self._model, DistilBertForMaskedLM):
+            outputs = self._model(
+                input_ids=input_ids_repeated,
+                attention_mask=attention_mask,  # No `position_ids` for DistilBERT
+            )
         else:
             raise ValueError(
                 f"Position IDs shift is not implemented for {self._model.__class__}"
             )
 
-        position_ids.masked_fill_(attention_mask == 0, 1)
-
-        outputs = self._model(
-            input_ids=input_ids_repeated,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-        )
         lm_logits = outputs["logits"]
 
         for idx in range(lm_logits.shape[1]):

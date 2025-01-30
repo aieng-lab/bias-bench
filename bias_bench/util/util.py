@@ -15,6 +15,8 @@ def _is_self_debias(model):
     return model in [
         "SelfDebiasGPT2LMHeadModel",
         "SelfDebiasBertForMaskedLM",
+        "SelfDebiasBertLargeForMaskedLM",
         "SelfDebiasAlbertForMaskedLM",
         "SelfDebiasRobertaForMaskedLM",
+        "SelfDebiasDistilbertForMaskedLM",
     ]

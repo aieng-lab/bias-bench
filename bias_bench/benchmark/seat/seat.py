@@ -5,6 +5,8 @@ import re
 
 import numpy as np
 import torch
+from scipy.stats import norm
+from tqdm import tqdm
 
 from bias_bench.benchmark.seat import weat
 
@@ -28,6 +30,8 @@ class SEATRunner:
         n_samples=100000,
         parametric=False,
         seed=0,
+        n_samples_bootstrap=1000,
+        confidence_level=0.95,
     ):
         """Initializes a SEAT test runner.
 
@@ -51,6 +55,8 @@ class SEATRunner:
         self._n_samples = n_samples
         self._parametric = parametric
         self._seed = seed
+        self._n_sample_bootstrapping = n_samples_bootstrap
+        self._confidence_level = confidence_level
 
     def __call__(self):
         """Runs specified SEAT tests.
@@ -73,7 +79,7 @@ class SEATRunner:
         # Use the specified tests, otherwise, run all SEAT tests.
         tests = self._tests or all_tests
 
-        results = []
+        results = {}
         for test in tests:
             print(f"Running test {test}")
 
@@ -102,20 +108,48 @@ class SEATRunner:
             print("\tDone!")
 
             # Run the test on the encodings.
-            esize, pval = weat.run_test(
-                encs, n_samples=self._n_samples, parametric=self._parametric
+            esize, pval, bs_esizes = weat.run_test(
+                encs, n_samples=self._n_samples, parametric=self._parametric, n_samples_bootstrap=self._n_sample_bootstrapping
             )
 
-            results.append(
-                {
-                    "experiment_id": self._experiment_id,
-                    "test": test,
-                    "p_value": pval,
-                    "effect_size": esize,
-                }
-            )
+            # Step 1: Compute the mean
+            mean_score = np.mean(bs_esizes)
 
-        return results
+            # Step 2: Compute the standard error (SE)
+            std_error = np.std(bs_esizes, ddof=1)  # Use ddof=1 for sample std dev
+            margin_of_error = norm.ppf(1 - (1 - self._confidence_level) / 2) * std_error
+
+            results[test] = {
+                "experiment_id": self._experiment_id,
+                "test": test,
+                "p_value": pval,
+                "effect_size": esize,
+                "ci_scores": bs_esizes,
+                "ci_mean": mean_score,
+                "ci_margin": margin_of_error,
+            }
+
+
+        effect_size = np.mean(np.abs([v['effect_size'] for v in results.values()]))
+        effect_sizes = [np.mean([v['ci_scores'][i] for v in results.values()]) for i in range(self._n_sample_bootstrapping)]
+        effect_abs_sizes = np.abs(effect_sizes).tolist()
+        # Step 1: Compute the mean
+        mean_score = np.mean(effect_abs_sizes)
+
+        # Step 2: Compute the standard error (SE)
+        std_error = np.std(effect_abs_sizes, ddof=1)  # Use ddof=1 for sample std dev
+        margin_of_error = norm.ppf(1 - (1 - self._confidence_level) / 2) * std_error
+
+        main_results = {
+            'effect_size': effect_size,
+            'ci_scores': effect_sizes,
+            'ci_abs_scores': effect_abs_sizes,
+            'ci_abs_mean': mean_score,
+            'ci_margin': margin_of_error,
+            **results,
+        }
+
+        return main_results
 
 
 def _test_sort_key(test):

@@ -6,7 +6,7 @@ import torch
 import transformers
 
 from bias_bench.benchmark.crows import CrowSPairsRunner
-from bias_bench.model import models
+from bias_bench.model import models, load_tokenizer
 from bias_bench.util import generate_experiment_id, _is_generative, _is_self_debias
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -23,28 +23,6 @@ parser.add_argument(
     action="store",
     type=str,
     default="SentenceDebiasBertForMaskedLM",
-    choices=[
-        "SentenceDebiasBertForMaskedLM",
-        "SentenceDebiasAlbertForMaskedLM",
-        "SentenceDebiasRobertaForMaskedLM",
-        "SentenceDebiasGPT2LMHeadModel",
-        "INLPBertForMaskedLM",
-        "INLPAlbertForMaskedLM",
-        "INLPRobertaForMaskedLM",
-        "INLPGPT2LMHeadModel",
-        "CDABertForMaskedLM",
-        "CDAAlbertForMaskedLM",
-        "CDARobertaForMaskedLM",
-        "CDAGPT2LMHeadModel",
-        "DropoutBertForMaskedLM",
-        "DropoutAlbertForMaskedLM",
-        "DropoutRobertaForMaskedLM",
-        "DropoutGPT2LMHeadModel",
-        "SelfDebiasBertForMaskedLM",
-        "SelfDebiasAlbertForMaskedLM",
-        "SelfDebiasRobertaForMaskedLM",
-        "SelfDebiasGPT2LMHeadModel",
-    ],
     help="Model to evalute (e.g., SentenceDebiasBertForMaskedLM). Typically, these "
     "correspond to a HuggingFace class.",
 )
@@ -53,7 +31,6 @@ parser.add_argument(
     action="store",
     type=str,
     default="bert-base-uncased",
-    choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
     help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
     "model is instantiated.",
 )
@@ -124,7 +101,7 @@ if __name__ == "__main__":
     else:
         model.eval()
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer = load_tokenizer(args.model_name_or_path)
 
     runner = CrowSPairsRunner(
         model=model,

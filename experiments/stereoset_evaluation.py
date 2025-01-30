@@ -1,4 +1,5 @@
 import argparse
+import random
 from collections import Counter, OrderedDict, defaultdict
 import glob
 import json
@@ -6,6 +7,7 @@ import os
 import re
 
 import numpy as np
+from scipy.stats import norm
 
 from bias_bench.benchmark.stereoset import dataloader
 
@@ -32,7 +34,7 @@ parser.add_argument(
     "--predictions_dir",
     action="store",
     type=str,
-    default=None,
+    default=os.path.realpath(os.path.join(thisdir, "..", "results", "stereoset")),
     help="Path to the directory containing a set of model predictions.",
 )
 parser.add_argument(
@@ -45,7 +47,7 @@ parser.add_argument(
 
 
 class ScoreEvaluator:
-    def __init__(self, gold_file_path, predictions_file_path):
+    def __init__(self, gold_file_path, predictions_file_path, n_samples=1000, confidence_level=0.95):
         """Evaluates the results of a StereoSet predictions file with respect to the gold label file.
 
         Args:
@@ -58,6 +60,8 @@ class ScoreEvaluator:
         # Cluster ID, gold_label to sentence ID.
         stereoset = dataloader.StereoSet(gold_file_path)
         self.intrasentence_examples = stereoset.get_intrasentence_examples()
+        self.n_samples = n_samples
+        self.confidence_level = confidence_level
         self.id2term = {}
         self.id2gold = {}
         self.id2score = {}
@@ -87,7 +91,7 @@ class ScoreEvaluator:
             )
 
         results["intrasentence"]["overall"] = self.evaluate(self.intrasentence_examples)
-        results["overall"] = self.evaluate(self.intrasentence_examples)
+        results["overall"] = results["intrasentence"]["overall"]
         self.results = results
 
     def get_overall_results(self):
@@ -96,6 +100,32 @@ class ScoreEvaluator:
     def evaluate(self, examples):
         counts = self.count(examples)
         scores = self.score(counts)
+
+        # evaluate bootstrap confidence intervals
+        bootstrap_scores = []
+        for i in range(self.n_samples):
+            np.random.seed(i)
+            bootstrap_examples = np.random.choice(examples, len(examples), replace=True)
+            counts = self.count(bootstrap_examples)
+            scores_bootstrap = self.score(counts)
+            bootstrap_scores.append(scores_bootstrap)
+        metrics = {'LM Score', 'SS Score'}
+        for metric in metrics:
+            # Step 1: Compute the mean
+            bootstrap_results = [score[metric] for score in bootstrap_scores]
+            mean_score = np.mean(bootstrap_results)
+
+            # Step 2: Compute the standard error (SE)
+            std_error = np.std(bootstrap_results, ddof=1)  # Use ddof=1 for sample std dev
+            margin_of_error = norm.ppf(1 - (1 - self.confidence_level) / 2) * std_error
+
+            scores[f'{metric}_ci_margin'] = margin_of_error
+            scores[f'{metric}_ci_mean'] = mean_score
+            scores[f'{metric}_scores'] = bootstrap_results
+
+            if abs(mean_score - scores[metric]) > 0.1:
+                print(f'Warning: {metric} mean score {mean_score} is much different from original score {scores[metric]}')
+
         return scores
 
     def count(self, examples):
@@ -140,6 +170,8 @@ class ScoreEvaluator:
             ss_scores.append(ss_score)
             micro_icat = lm_score * (min(ss_score, 100.0 - ss_score) / 50.0)
             micro_icat_scores.append(micro_icat)
+
+            #print(f'{term}: LM {lm_score:.2f} SS {ss_score:.2f} ICAT {micro_icat:.2f}')
 
         lm_score = np.mean(lm_scores)
         ss_score = np.mean(ss_scores)
