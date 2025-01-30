@@ -1,4 +1,4 @@
-# GRADIEND: Monosemantic Feature Learning within Neural Networks Applied to Gender Debiasing
+# Modified Version of [bias-bench](https://github.com/McGill-NLP/bias-bench) for [GRADIEND](https://github.com/aieng-lab/gradiend)
 > Jonathan Drechsel, Steffen Herbold
 
 This repository contains the official source code for the evaluation of [GRADIEND: Monosemantic Feature Learning within Neural Networks Applied to Gender Debiasing](todo).
@@ -67,14 +67,11 @@ You may need to adjust the paths in `shell_jobs/_experiment_configuration.sh` to
 * `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`) to generate the result tables presented in the paper.
 * All python programs and shell scripts must be started from the bias-bench root directory to make sure that the relative paths are correct.
 
-## Running on an HPC Cluster TODO
-We provide scripts for running all of the experiments presented in the paper on a SLURM cluster in `batch_jobs`.
-If you plan to use these scripts, make sure you customize `python_job.sh` to run the jobs on your cluster.
-In addition, you will also need to change both the output (`-o`) and error (`-e`) paths.
 
 ## Acknowledgements
 This repository makes use of code from the following repositories:
 
+* [bias-bench](https://github.com/McGill-NLP/bias-bench)
 * [Towards Debiasing Sentence Representations](https://github.com/pliang279/sent_debias)
 * [StereoSet: Measuring Stereotypical Bias in Pre-trained Language Models](https://github.com/moinnadeem/stereoset)
 * [CrowS-Pairs: A Challenge Dataset for Measuring Social Biases in Masked Language Models](https://github.com/nyu-mll/crows-pairs)
