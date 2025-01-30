@@ -153,11 +153,17 @@ class StereoSetRunner:
             else:
                 with torch.no_grad():
                     # Get the probabilities.
-                    output = model(
-                        input_ids,
-                        attention_mask=attention_mask,
-                        token_type_ids=token_type_ids,
-                    )[0].softmax(dim=-1)
+                    needs_token_type_ids = 'token_type_ids' in model.forward.__code__.co_varnames
+                    if needs_token_type_ids:
+                        output = model(
+                            input_ids,
+                            attention_mask=attention_mask,
+                            token_type_ids=token_type_ids,
+                        )
+                    else:
+                        output = model(input_ids, attention_mask=attention_mask)
+
+                    output = output[0].softmax(dim=-1)
 
                 output = output[mask_idxs]
 

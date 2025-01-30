@@ -1,3 +1,6 @@
+import re
+
+
 def generate_experiment_id(
     name,
     model=None,
@@ -11,6 +14,13 @@ def generate_experiment_id(
     if isinstance(model, str):
         experiment_id += f"_m-{model}"
     if isinstance(model_name_or_path, str):
+        # remove everything from the path before the gradiend folder
+        model_name_or_path = re.sub(r'.*gradiend[\\/]', '', model_name_or_path)
+        model_name_or_path = (model_name_or_path.replace('results/', '')
+                              .replace('changed_models/', '')
+                              .replace('../', '')
+                              .replace('/', '-')
+                              .replace('\\', '-'))
         experiment_id += f"_c-{model_name_or_path}"
     if isinstance(bias_type, str):
         experiment_id += f"_t-{bias_type}"

@@ -9,7 +9,7 @@ from transformers import (
     PreTrainedTokenizer,
     T5ForConditionalGeneration,
 )
-from transformers.generation_utils import (
+from transformers.generation.utils import (
     GenerationMixin,
     SampleOutput,
     SampleEncoderDecoderOutput,

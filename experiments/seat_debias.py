@@ -6,7 +6,7 @@ import torch
 import transformers
 
 from bias_bench.benchmark.seat import SEATRunner
-from bias_bench.model import models
+from bias_bench.model import models, load_tokenizer
 from bias_bench.util import generate_experiment_id
 
 
@@ -44,24 +44,6 @@ parser.add_argument(
     action="store",
     type=str,
     default="SentenceDebiasBertModel",
-    choices=[
-        "SentenceDebiasBertModel",
-        "SentenceDebiasAlbertModel",
-        "SentenceDebiasRobertaModel",
-        "SentenceDebiasGPT2Model",
-        "INLPBertModel",
-        "INLPAlbertModel",
-        "INLPRobertaModel",
-        "INLPGPT2Model",
-        "CDABertModel",
-        "CDAAlbertModel",
-        "CDARobertaModel",
-        "CDAGPT2Model",
-        "DropoutBertModel",
-        "DropoutAlbertModel",
-        "DropoutRobertaModel",
-        "DropoutGPT2Model",
-    ],
     help="Debiased model (e.g., SentenceDebiasModel) to evaluate.",
 )
 parser.add_argument(
@@ -69,7 +51,6 @@ parser.add_argument(
     action="store",
     type=str,
     default="bert-base-uncased",
-    choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
     help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
     "model is instantiated.",
 )
@@ -138,7 +119,7 @@ if __name__ == "__main__":
         args.load_path or args.model_name_or_path, **kwargs
     )
     model.eval()
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer = load_tokenizer(args.model_name_or_path)
 
     runner = SEATRunner(
         experiment_id=experiment_id,

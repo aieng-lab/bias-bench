@@ -3,7 +3,6 @@ from functools import partial
 import torch
 import transformers
 
-from bias_bench.debias.self_debias.modeling import GPT2Wrapper
 from bias_bench.debias.self_debias.modeling import MaskedLMWrapper
 
 
@@ -16,10 +15,21 @@ class AlbertModel:
     def __new__(self, model_name_or_path):
         return transformers.AlbertModel.from_pretrained(model_name_or_path)
 
-
 class RobertaModel:
     def __new__(self, model_name_or_path):
         return transformers.RobertaModel.from_pretrained(model_name_or_path)
+
+class DistilbertModel:
+    def __new__(self, model_name_or_path):
+        return transformers.DistilBertModel.from_pretrained(model_name_or_path)
+
+class DebertaModel:
+    def __new__(self, model_name_or_path):
+        return transformers.DebertaV2Model.from_pretrained(model_name_or_path)
+
+class AutoModel:
+    def __new__(self, model_name_or_path):
+        return transformers.AutoModel.from_pretrained(model_name_or_path)
 
 
 class GPT2Model:
@@ -31,6 +41,8 @@ class BertForMaskedLM:
     def __new__(self, model_name_or_path):
         return transformers.BertForMaskedLM.from_pretrained(model_name_or_path)
 
+BertLargeForMaskedLM = BertForMaskedLM
+
 
 class AlbertForMaskedLM:
     def __new__(self, model_name_or_path):
@@ -41,6 +53,13 @@ class RobertaForMaskedLM:
     def __new__(self, model_name_or_path):
         return transformers.RobertaForMaskedLM.from_pretrained(model_name_or_path)
 
+class DebertaForMaskedLM:
+    def __new__(self, model_name_or_path):
+        return transformers.DebertaV2ForMaskedLM.from_pretrained(model_name_or_path)
+
+class DistilbertForMaskedLM:
+    def __new__(self, model_name_or_path):
+        return transformers.DistilBertForMaskedLM.from_pretrained(model_name_or_path)
 
 class GPT2LMHeadModel:
     def __new__(self, model_name_or_path):
@@ -96,7 +115,7 @@ class SentenceDebiasBertModel(_SentenceDebiasModel):
         model = transformers.BertModel.from_pretrained(model_name_or_path)
         model.encoder.register_forward_hook(self.func)
         return model
-
+SentenceDebiasBertLargeModel = SentenceDebiasBertModel
 
 class SentenceDebiasAlbertModel(_SentenceDebiasModel):
     def __new__(self, model_name_or_path, bias_direction):
@@ -111,6 +130,20 @@ class SentenceDebiasRobertaModel(_SentenceDebiasModel):
         super().__init__(self, model_name_or_path, bias_direction)
         model = transformers.RobertaModel.from_pretrained(model_name_or_path)
         model.encoder.register_forward_hook(self.func)
+        return model
+
+class SentenceDebiasDebertaModel(_SentenceDebiasModel):
+    def __new__(self, model_name_or_path, bias_direction):
+        super().__init__(self, model_name_or_path, bias_direction)
+        model = transformers.DebertaV2Model.from_pretrained(model_name_or_path)
+        model.encoder.register_forward_hook(self.func)
+        return model
+
+class SentenceDebiasDistilbertModel(_SentenceDebiasModel):
+    def __new__(self, model_name_or_path, bias_direction):
+        super().__init__(self, model_name_or_path, bias_direction)
+        model = transformers.DistilBertModel.from_pretrained(model_name_or_path)
+        model.transformer.register_forward_hook(self.func)
         return model
 
 
@@ -128,6 +161,7 @@ class SentenceDebiasBertForMaskedLM(_SentenceDebiasModel):
         model = transformers.BertForMaskedLM.from_pretrained(model_name_or_path)
         model.bert.register_forward_hook(self.func)
         return model
+SentenceDebiasBertLargeForMaskedLM = SentenceDebiasBertForMaskedLM
 
 
 class SentenceDebiasAlbertForMaskedLM(_SentenceDebiasModel):
@@ -145,6 +179,20 @@ class SentenceDebiasRobertaForMaskedLM(_SentenceDebiasModel):
         model.roberta.register_forward_hook(self.func)
         return model
 
+class SentenceDebiasDebertaForMaskedLM(_SentenceDebiasModel):
+    def __new__(self, model_name_or_path, bias_direction):
+        super().__init__(self, model_name_or_path, bias_direction)
+        model = transformers.DebertaV2ForMaskedLM.from_pretrained(model_name_or_path)
+        model.base_model.register_forward_hook(self.func)
+        return model
+
+class SentenceDebiasDistilbertForMaskedLM(_SentenceDebiasModel):
+    def __new__(self, model_name_or_path, bias_direction):
+        super().__init__(self, model_name_or_path, bias_direction)
+        model = transformers.DistilBertForMaskedLM.from_pretrained(model_name_or_path)
+        model.base_model.transformer.register_forward_hook(self.func)
+        return model
+
 
 class SentenceDebiasGPT2LMHeadModel(_SentenceDebiasModel):
     def __new__(self, model_name_or_path, bias_direction):
@@ -160,7 +208,7 @@ class INLPBertModel(_INLPModel):
         model = transformers.BertModel.from_pretrained(model_name_or_path)
         model.encoder.register_forward_hook(self.func)
         return model
-
+INLPBertLargeModel = INLPBertModel
 
 class INLPAlbertModel(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix):
@@ -177,6 +225,19 @@ class INLPRobertaModel(_INLPModel):
         model.encoder.register_forward_hook(self.func)
         return model
 
+class INLPDebertaModel(_INLPModel):
+    def __new__(self, model_name_or_path, projection_matrix):
+        super().__init__(self, model_name_or_path, projection_matrix)
+        model = transformers.DebertaV2Model.from_pretrained(model_name_or_path)
+        model.encoder.register_forward_hook(self.func)
+        return model
+
+class INLPDistilbertModel(_INLPModel):
+    def __new__(self, model_name_or_path, projection_matrix):
+        super().__init__(self, model_name_or_path, projection_matrix)
+        model = transformers.DistilBertModel.from_pretrained(model_name_or_path)
+        model.transformer.register_forward_hook(self.func)
+        return model
 
 class INLPGPT2Model(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix):
@@ -190,9 +251,9 @@ class INLPBertForMaskedLM(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix):
         super().__init__(self, model_name_or_path, projection_matrix)
         model = transformers.BertForMaskedLM.from_pretrained(model_name_or_path)
-        model.bert.register_forward_hook(self.func)
+        model.base_model.register_forward_hook(self.func)
         return model
-
+INLPBertLargeForMaskedLM = INLPBertForMaskedLM
 
 class INLPAlbertForMaskedLM(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix):
@@ -209,6 +270,20 @@ class INLPRobertaForMaskedLM(_INLPModel):
         model.roberta.register_forward_hook(self.func)
         return model
 
+class INLPDebertaForMaskedLM(_INLPModel):
+    def __new__(self, model_name_or_path, projection_matrix):
+        super().__init__(self, model_name_or_path, projection_matrix)
+        model = transformers.DebertaV2ForMaskedLM.from_pretrained(model_name_or_path)
+        model.base_model.register_forward_hook(self.func)
+        return model
+
+class INLPDistilbertForMaskedLM(_INLPModel):
+    def __new__(self, model_name_or_path, projection_matrix):
+        super().__init__(self, model_name_or_path, projection_matrix)
+        model = transformers.DistilBertForMaskedLM.from_pretrained(model_name_or_path)
+        model.base_model.transformer.register_forward_hook(self.func)
+        return model
+
 
 class INLPGPT2LMHeadModel(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix):
@@ -222,7 +297,7 @@ class CDABertModel:
     def __new__(self, model_name_or_path):
         model = transformers.BertModel.from_pretrained(model_name_or_path)
         return model
-
+CDABertLargeModel = CDABertModel
 
 class CDAAlbertModel:
     def __new__(self, model_name_or_path):
@@ -233,6 +308,16 @@ class CDAAlbertModel:
 class CDARobertaModel:
     def __new__(self, model_name_or_path):
         model = transformers.RobertaModel.from_pretrained(model_name_or_path)
+        return model
+
+class CDDebertaModel:
+    def __new__(self, model_name_or_path):
+        model = transformers.DebertaV2Model.from_pretrained(model_name_or_path)
+        return model
+
+class CDADistilbertModel:
+    def __new__(self, model_name_or_path):
+        model = transformers.DistilBertModel.from_pretrained(model_name_or_path)
         return model
 
 
@@ -246,7 +331,7 @@ class CDABertForMaskedLM:
     def __new__(self, model_name_or_path):
         model = transformers.BertForMaskedLM.from_pretrained(model_name_or_path)
         return model
-
+CDABertLargeForMaskedLM = CDABertForMaskedLM
 
 class CDAAlbertForMaskedLM:
     def __new__(self, model_name_or_path):
@@ -259,6 +344,15 @@ class CDARobertaForMaskedLM:
         model = transformers.RobertaForMaskedLM.from_pretrained(model_name_or_path)
         return model
 
+class CDADebertaForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = transformers.DebertaV2ForMaskedLM.from_pretrained(model_name_or_path)
+        return model
+
+class CDADistilbertForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = transformers.DistilBertForMaskedLM.from_pretrained(model_name_or_path)
+        return model
 
 class CDAGPT2LMHeadModel:
     def __new__(self, model_name_or_path):
@@ -270,7 +364,7 @@ class DropoutBertModel:
     def __new__(self, model_name_or_path):
         model = transformers.BertModel.from_pretrained(model_name_or_path)
         return model
-
+DropoutBertLargeModel = DropoutBertModel
 
 class DropoutAlbertModel:
     def __new__(self, model_name_or_path):
@@ -283,6 +377,15 @@ class DropoutRobertaModel:
         model = transformers.RobertaModel.from_pretrained(model_name_or_path)
         return model
 
+class DropoutDebertaModel:
+    def __new__(self, model_name_or_path):
+        model = transformers.DebertaV2Model.from_pretrained(model_name_or_path)
+        return model
+
+class DropoutDistilbertModel:
+    def __new__(self, model_name_or_path):
+        model = transformers.DistilBertModel.from_pretrained(model_name_or_path)
+        return model
 
 class DropoutGPT2Model:
     def __new__(self, model_name_or_path):
@@ -294,7 +397,7 @@ class DropoutBertForMaskedLM:
     def __new__(self, model_name_or_path):
         model = transformers.BertForMaskedLM.from_pretrained(model_name_or_path)
         return model
-
+DropoutBertLargeForMaskedLM = DropoutBertForMaskedLM
 
 class DropoutAlbertForMaskedLM:
     def __new__(self, model_name_or_path):
@@ -307,6 +410,15 @@ class DropoutRobertaForMaskedLM:
         model = transformers.RobertaForMaskedLM.from_pretrained(model_name_or_path)
         return model
 
+class DropoutDebertaForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = transformers.DebertaV2ForMaskedLM.from_pretrained(model_name_or_path)
+        return model
+
+class DropoutDistilbertForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = transformers.DistilBertForMaskedLM.from_pretrained(model_name_or_path)
+        return model
 
 class DropoutGPT2LMHeadModel:
     def __new__(self, model_name_or_path):
@@ -320,7 +432,7 @@ class BertForSequenceClassification:
             model_name_or_path, config=config
         )
         return model
-
+BertLargeForSequenceClassification = BertForSequenceClassification
 
 class AlbertForSequenceClassification:
     def __new__(self, model_name_or_path, config):
@@ -333,6 +445,20 @@ class AlbertForSequenceClassification:
 class RobertaForSequenceClassification:
     def __new__(self, model_name_or_path, config):
         model = transformers.RobertaForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        return model
+
+class DebertaForSequenceClassification:
+    def __new__(self, model_name_or_path, config):
+        model = transformers.DebertaV2ForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        return model
+
+class DistilbertForSequenceClassification:
+    def __new__(self, model_name_or_path, config):
+        model = transformers.DistilBertForSequenceClassification.from_pretrained(
             model_name_or_path, config=config
         )
         return model
@@ -354,7 +480,7 @@ class SentenceDebiasBertForSequenceClassification(_SentenceDebiasModel):
         )
         model.bert.encoder.register_forward_hook(self.func)
         return model
-
+SentenceDebiasBertLargeForSequenceClassification = SentenceDebiasBertForSequenceClassification
 
 class SentenceDebiasAlbertForSequenceClassification(_SentenceDebiasModel):
     def __new__(self, model_name_or_path, bias_direction, config):
@@ -373,6 +499,24 @@ class SentenceDebiasRobertaForSequenceClassification(_SentenceDebiasModel):
             model_name_or_path, config=config
         )
         model.roberta.encoder.register_forward_hook(self.func)
+        return model
+
+class SentenceDebiasDebertaForSequenceClassification(_SentenceDebiasModel):
+    def __new__(self, model_name_or_path, bias_direction, config):
+        super().__init__(self, model_name_or_path, bias_direction)
+        model = transformers.DebertaV2ForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        model.base_model.encoder.register_forward_hook(self.func)
+        return model
+
+class SentenceDebiasDistilbertForSequenceClassification(_SentenceDebiasModel):
+    def __new__(self, model_name_or_path, bias_direction, config):
+        super().__init__(self, model_name_or_path, bias_direction)
+        model = transformers.DistilBertForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        model.base_model.transformer.register_forward_hook(self.func)
         return model
 
 
@@ -394,7 +538,7 @@ class INLPBertForSequenceClassification(_INLPModel):
         )
         model.bert.encoder.register_forward_hook(self.func)
         return model
-
+INLPBertLargeForSequenceClassification = INLPBertForSequenceClassification
 
 class INLPAlbertForSequenceClassification(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix, config):
@@ -415,6 +559,24 @@ class INLPRobertaForSequenceClassification(_INLPModel):
         model.roberta.encoder.register_forward_hook(self.func)
         return model
 
+class INLPDebertaForSequenceClassification(_INLPModel):
+    def __new__(self, model_name_or_path, projection_matrix, config):
+        super().__init__(self, model_name_or_path, projection_matrix)
+        model = transformers.DebertaV2ForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        model.base_model.encoder.register_forward_hook(self.func)
+        return model
+
+class INLPDistilbertForSequenceClassification(_INLPModel):
+    def __new__(self, model_name_or_path, projection_matrix, config):
+        super().__init__(self, model_name_or_path, projection_matrix)
+        model = transformers.DistilBertForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        model.base_model.transformer.register_forward_hook(self.func)
+        return model
+
 
 class INLPGPT2ForSequenceClassification(_INLPModel):
     def __new__(self, model_name_or_path, projection_matrix, config):
@@ -432,7 +594,7 @@ class CDABertForSequenceClassification:
             model_name_or_path, config=config
         )
         return model
-
+CDABertLargeForSequenceClassification = CDABertForSequenceClassification
 
 class CDAAlbertForSequenceClassification:
     def __new__(self, model_name_or_path, config):
@@ -445,6 +607,20 @@ class CDAAlbertForSequenceClassification:
 class CDARobertaForSequenceClassification:
     def __new__(self, model_name_or_path, config):
         model = transformers.RobertaForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        return model
+
+class CDADebertaForSequenceClassification:
+    def __new__(self, model_name_or_path, config):
+        model = transformers.DebertaV2ForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        return model
+
+class CDADistilbertForSequenceClassification:
+    def __new__(self, model_name_or_path, config):
+        model = transformers.DistilBertForSequenceClassification.from_pretrained(
             model_name_or_path, config=config
         )
         return model
@@ -464,7 +640,7 @@ class DropoutBertForSequenceClassification:
             model_name_or_path, config=config
         )
         return model
-
+DropoutBertLargeForSequenceClassification = DropoutBertForSequenceClassification
 
 class DropoutAlbertForSequenceClassification:
     def __new__(self, model_name_or_path, config):
@@ -477,6 +653,20 @@ class DropoutAlbertForSequenceClassification:
 class DropoutRobertaForSequenceClassification:
     def __new__(self, model_name_or_path, config):
         model = transformers.RobertaForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        return model
+
+class DropoutDebertaForSequenceClassification:
+    def __new__(self, model_name_or_path, config):
+        model = transformers.DebertaV2ForSequenceClassification.from_pretrained(
+            model_name_or_path, config=config
+        )
+        return model
+
+class DropoutDistilbertForSequenceClassification:
+    def __new__(self, model_name_or_path, config):
+        model = transformers.DistilBertForSequenceClassification.from_pretrained(
             model_name_or_path, config=config
         )
         return model
@@ -494,7 +684,7 @@ class SelfDebiasBertForMaskedLM:
     def __new__(self, model_name_or_path):
         model = MaskedLMWrapper(model_name_or_path)
         return model
-
+SelfDebiasBertLargeForMaskedLM = SelfDebiasBertForMaskedLM
 
 class SelfDebiasAlbertForMaskedLM:
     def __new__(self, model_name_or_path):
@@ -508,7 +698,28 @@ class SelfDebiasRobertaForMaskedLM:
         return model
 
 
-class SelfDebiasGPT2LMHeadModel:
+class SelfDebiasDebertaForMaskedLM:
     def __new__(self, model_name_or_path):
-        model = GPT2Wrapper(model_name_or_path, use_cuda=False)
+        model = MaskedLMWrapper(model_name_or_path)
+        return model
+
+class SelfDebiasDistilbertForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = MaskedLMWrapper(model_name_or_path)
+        return model
+
+
+class MovementPruningBertForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = MaskedLMWrapper(model_name_or_path)
+        return model
+    
+class MovementPruningRobertaForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = MaskedLMWrapper(model_name_or_path)
+        return model
+
+class MovementPruningDistilbertForMaskedLM:
+    def __new__(self, model_name_or_path):
+        model = MaskedLMWrapper(model_name_or_path)
         return model

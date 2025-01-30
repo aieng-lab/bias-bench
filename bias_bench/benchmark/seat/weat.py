@@ -1,9 +1,13 @@
 import itertools
+import random
+
 import math
 
 import numpy as np
 import scipy.special
 import scipy.stats
+import tqdm
+
 
 # X and Y are two sets of target words of equal size.
 # A and B are two sets of attribute words.
@@ -82,10 +86,10 @@ def p_val_permutation_test(X, Y, A, B, n_samples, cossims, parametric=False):
     the probability that a random even partition X_i, Y_i of X u Y
     satisfies P[s(X_i, Y_i, A, B) > s(X, Y, A, B)]
     """
-    X = np.array(list(X), dtype=np.int)
-    Y = np.array(list(Y), dtype=np.int)
-    A = np.array(list(A), dtype=np.int)
-    B = np.array(list(B), dtype=np.int)
+    X = np.array(list(X), dtype=np.int64)
+    Y = np.array(list(Y), dtype=np.int64)
+    A = np.array(list(A), dtype=np.int64)
+    B = np.array(list(B), dtype=np.int64)
 
     assert len(X) == len(Y)
     size = len(X)
@@ -155,7 +159,7 @@ def p_val_permutation_test(X, Y, A, B, n_samples, cossims, parametric=False):
         else:
             print("Using exact test ({} partitions)".format(num_partitions))
             for Xi in itertools.combinations(XY, len(X)):
-                Xi = np.array(Xi, dtype=np.int)
+                Xi = np.array(Xi, dtype=np.int64)
                 assert 2 * len(Xi) == len(XY)
                 si = s_XAB(Xi, s_wAB_memo)
                 if si > s:
@@ -205,7 +209,7 @@ def convert_keys_to_ints(X, Y):
     )
 
 
-def run_test(encs, n_samples, parametric=False):
+def run_test(encs, n_samples, parametric=False, n_samples_bootstrap=1000):
     """Run a WEAT.
     Args:
         encs (Dict[str: Dict]): dictionary mapping targ1, targ2, attr1, attr2
@@ -229,6 +233,7 @@ def run_test(encs, n_samples, parametric=False):
     print("Computing cosine similarities...")
     cossims = construct_cossim_lookup(XY, AB)
 
+
     print(
         "Null hypothesis: no difference between {} and {} in association to attributes {} and {}".format(
             encs["targ1"]["category"],
@@ -245,8 +250,28 @@ def run_test(encs, n_samples, parametric=False):
 
     print("computing effect size...")
     esize = effect_size(X, Y, A, B, cossims=cossims)
+
+    # compute bootstrap effect sizes
+    bs_esizes = []
+    n = len(X[0])
+    for i in tqdm.tqdm(range(n_samples_bootstrap), 'bootstrap'):
+        np.random.seed(i)
+        indices = np.random.choice(n, n, replace=True)
+        X_boot = {i: X[i][indices] for i in X}
+        Y_boot = {i: Y[i][indices] for i in Y}
+        A_boot = {i: A[i][indices] for i in A}
+        B_boot = {i: B[i][indices] for i in B}
+        XY_boot = X_boot.copy()
+        XY_boot.update(Y_boot)
+        AB_boot = A_boot.copy()
+        AB_boot.update(B_boot)
+
+        cossims = construct_cossim_lookup(XY_boot, AB_boot)
+        esize_boot = effect_size(X_boot, Y_boot, A_boot, B_boot, cossims=cossims)
+        bs_esizes.append(esize_boot)
+
     print(f"esize: {esize:.3f}")
-    return esize, pval
+    return esize, pval, bs_esizes
 
 
 if __name__ == "__main__":
