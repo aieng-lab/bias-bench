@@ -8,7 +8,7 @@ source "shell_jobs/_experiment_configuration.sh"
 model=$1
 size_model_type=$2
 base_model=$3
-early_stopping=$4
+early_stopping="False"
 
 # Remove suffix "Large" from size_model_type
 model_type=${size_model_type%"Large"}
