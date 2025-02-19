@@ -19,8 +19,8 @@ male_model="${changed_models_dir}/bert-base-cased-M${suffix}"
 female_model="${gradiend_dir}/results/changed_models/bert-base-cased-F${suffix}"
 unbiased_model="${gradiend_dir}/results/changed_models/bert-base-cased-N${suffix}"
 
-male_model_bert_large_cased="${gradiend_dir}//results/changed_models/bert-large-cased-M${suffix}"
-female_model_bert_large_cased="${gradiend_dir}//results/changed_models/bert-large-cased-F${suffix}"
+male_model_bert_large_cased="${gradiend_dir}/results/changed_models/bert-large-cased-M${suffix}"
+female_model_bert_large_cased="${gradiend_dir}/results/changed_models/bert-large-cased-F${suffix}"
 unbiased_model_bert_large_cased="${gradiend_dir}/results/changed_models/bert-large-cased-N${suffix}"
 
 male_roberta_model="${gradiend_dir}/results/changed_models/roberta-large-M${suffix}"
