@@ -39,7 +39,7 @@ def bootstrap_glue_scores(df: pd.DataFrame, n_samples: int = 1000, seed: int = 4
         'mnli-mm': 'mnli_mismatched',
     }
     metrics = {task: load_metric("glue", task_mapper.get(task, task)) for task in unique_tasks}
-    from export.glue import metric_mapping
+    from experiments.util import metric_mapping
     metric_mapping['mnli-mm'] = metric_mapping['mnli']
 
     # Function to compute metrics
@@ -291,7 +291,3 @@ def calculate_bootstrap_for_all_models(base_path, suffix=''):
 # Example usage
 if __name__ == "__main__":
     calculate_bootstrap_for_all_models('results/checkpoints')
-    calculate_bootstrap_for_all_models('results/checkpoints', suffix='_corrected')
-    #model = 'results/checkpoints/glue_m-BertForSequenceClassification_c-bert-base-cased'
-    #glue_bootstrap(model)
-    #test_needed_samples(model)

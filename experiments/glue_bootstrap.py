@@ -5,10 +5,8 @@ import pandas as pd
 import numpy as np
 import tqdm
 from datasets import load_metric, load_dataset
-from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef
-from scipy.stats import spearmanr, norm
+from scipy.stats import norm
 
-from export.glue import metric_mapping
 
 
 def bootstrap_glue_scores_v1(df: pd.DataFrame, n_samples: int = 1000, seed: int = 42) -> list:
@@ -40,7 +38,7 @@ def bootstrap_glue_scores_v1(df: pd.DataFrame, n_samples: int = 1000, seed: int 
     def compute_metric(task, predicted, correct):
         metric = load_metric("glue", task)
         result = metric.compute(predictions=predicted, references=correct)
-        from export.glue import metric_mapping
+        from experiments.util import metric_mapping
         metric_key = metric_mapping[task].removeprefix('eval_')
         return result[metric_key]
 
@@ -113,7 +111,7 @@ def bootstrap_glue_scores(df: pd.DataFrame, n_samples: int = 1000, seed: int = 4
     def compute_metric(task, correct, predicted):
         metric = metrics[task]
         result = metric.compute(predictions=predicted, references=correct)
-        from export.glue import metric_mapping
+        from experiments.util import metric_mapping
         metric_key = metric_mapping[task].removeprefix('eval_')
         return result[metric_key]
 

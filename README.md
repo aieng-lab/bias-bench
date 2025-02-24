@@ -1,5 +1,6 @@
 # Modified Version of [bias-bench](https://github.com/McGill-NLP/bias-bench) for [GRADIEND](https://github.com/aieng-lab/gradiend)
 > Jonathan Drechsel, Steffen Herbold
+
 [![arXiv](https://img.shields.io/badge/arXiv-2502.01406-blue.svg)](https://arxiv.org/abs/2502.01406)
 
 This repository contains the official source code for the evaluation of [GRADIEND: Monosemantic Feature Learning within Neural Networks Applied to Gender Debiasing](todo).
@@ -63,11 +64,12 @@ Moreover, before running these scripts, the gradiend results must be computed fi
 You may need to adjust the paths in `shell_jobs/_experiment_configuration.sh` to match your local setup (`persistent_dir` and `gradiend_dir`).
 
 ### Notes
+* All python programs and shell scripts must be started from the bias-bench root directory to make sure that the relative paths are correct (e.g., `bash shellscripts/crows.sh` and `python gradiend/training/gradiend_training.py`).
 * To run SentenceDebias models against any of the benchmarks, you will first need to run `experiments/sentence_debias_subspace.py`.
 * To run INLP models against any of the benchmarks, you will first need to run `experiments/inlp_projection_matrix.py`.
 * `stereoset.sh` and `stereoset_debias.sh` only compute the raw results for StereoSet. To compute the SS metrics, you need to run `experiments/stereoset_evaluation.py`.
+* `glues.sh` only computes the raw results for GLUE and metrics for each sub-score. To compute the bootstrap overall metrics, run `experiments/glue_bootstrap_evaluation.py`.
 * `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`) to generate the result tables presented in the paper.
-* All python programs and shell scripts must be started from the bias-bench root directory to make sure that the relative paths are correct.
 
 
 ## Acknowledgements
