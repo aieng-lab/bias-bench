@@ -65,6 +65,7 @@ You may need to adjust the paths in `shell_jobs/_experiment_configuration.sh` to
 ### Notes
 * To run SentenceDebias models against any of the benchmarks, you will first need to run `experiments/sentence_debias_subspace.py`.
 * To run INLP models against any of the benchmarks, you will first need to run `experiments/inlp_projection_matrix.py`.
+* `stereoset.sh` and `stereoset_debias.sh` only compute the raw results for StereoSet. To compute the SS metrics, you need to run `experiments/stereoset_evaluation.py`.
 * `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`) to generate the result tables presented in the paper.
 * All python programs and shell scripts must be started from the bias-bench root directory to make sure that the relative paths are correct.
 
