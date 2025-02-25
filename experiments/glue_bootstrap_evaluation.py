@@ -219,13 +219,13 @@ def glue_bootstrap(input, n_samples=1000, confidence_level=0.95, suffix=''):
     output = f"{input}/glue_results_{n_samples}_{confidence_level}{suffix}.json"
 
     bootstrap_results = None
-    if False and os.path.exists(output):
+    if os.path.exists(output):
         with open(output, "r") as f:
             bootstrap_results = json.load(f)
 
     if not bootstrap_results:
         df_output = f'{input}/glue_results{suffix}.csv'
-        if False and os.path.exists(df_output):
+        if os.path.exists(df_output):
             df = pd.read_csv(df_output)
         else:
             df = read_glue_results(input, use_corrected=bool(suffix))
