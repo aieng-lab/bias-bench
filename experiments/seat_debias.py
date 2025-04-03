@@ -50,8 +50,8 @@ parser.add_argument(
     "--model_name_or_path",
     action="store",
     type=str,
-    default="bert-base-uncased",
-    help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
+    default="bert-base-cased",
+    help="HuggingFace model name or path (e.g., bert-base-cased). Checkpoint from which a "
     "model is instantiated.",
 )
 parser.add_argument(
@@ -79,14 +79,18 @@ parser.add_argument(
     choices=["gender", "religion", "race"],
     help="The type of bias to mitigate.",
 )
-
+parser.add_argument(
+    "--projection_prefix",
+    default="",
+    choices=["", 'rlace_', 'leace_']
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
     experiment_id = generate_experiment_id(
         name="seat",
-        model=args.model,
+        model=args.projection_prefix + args.model,
         model_name_or_path=args.model_name_or_path,
         bias_type=args.bias_type,
     )
@@ -121,6 +125,8 @@ if __name__ == "__main__":
     model.eval()
     tokenizer = load_tokenizer(args.model_name_or_path)
 
+    output_file = f"{args.persistent_dir}/results/seat/{experiment_id}.json"
+
     runner = SEATRunner(
         experiment_id=experiment_id,
         tests=args.tests,
@@ -129,10 +135,11 @@ if __name__ == "__main__":
         parametric=args.parametric,
         model=model,
         tokenizer=tokenizer,
+        output_file=output_file,
     )
     results = runner()
     print(results)
 
     os.makedirs(f"{args.persistent_dir}/results/seat", exist_ok=True)
-    with open(f"{args.persistent_dir}/results/seat/{experiment_id}.json", "w") as f:
+    with open(output_file, "w") as f:
         json.dump(results, f)

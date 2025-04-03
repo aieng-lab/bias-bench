@@ -5,7 +5,7 @@ import os
 import transformers
 
 from bias_bench.benchmark.stereoset import StereoSetRunner
-from bias_bench.model import models
+from bias_bench.model import models, load_tokenizer
 from bias_bench.util import generate_experiment_id, _is_generative
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -35,9 +35,9 @@ parser.add_argument(
     "--model_name_or_path",
     action="store",
     type=str,
-    default="bert-base-uncased",
-    #choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
-    help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
+    default="bert-base-cased",
+    #choices=["bert-base-cased", "albert-base-v2", "roberta-base", "gpt2"],
+    help="HuggingFace model name or path (e.g., bert-base-cased). Checkpoint from which a "
     "model is instantiated.",
 )
 parser.add_argument(
@@ -75,8 +75,7 @@ if __name__ == "__main__":
 
     model = getattr(models, args.model)(args.model_name_or_path)
     model.eval()
-    tokenizer_name = 'roberta-large' if 'roberta-large' in args.model_name_or_path else args.model_name_or_path
-    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
+    tokenizer = load_tokenizer(args.model_name_or_path)
 
     runner = StereoSetRunner(
         intrasentence_model=model,

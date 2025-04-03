@@ -212,12 +212,7 @@ class ScoreEvaluator:
         return results
 
 
-def parse_file(gold_file, predictions_file):
-    score_evaluator = ScoreEvaluator(
-        gold_file_path=gold_file, predictions_file_path=predictions_file
-    )
-    overall = score_evaluator.get_overall_results()
-    score_evaluator.pretty_print(overall)
+def parse_file(gold_file, predictions_file, force=False):
 
     if args.output_file:
         output_file = args.output_file
@@ -238,6 +233,17 @@ def parse_file(gold_file, predictions_file):
     # Extract the experiment ID from the file path.
     file_name = os.path.basename(predictions_file)
     experiment_id = os.path.splitext(file_name)[0]
+
+    if experiment_id in d and not force:
+        print(f"Skipping {experiment_id} as it already exists in the output file.")
+        return
+
+    score_evaluator = ScoreEvaluator(
+        gold_file_path=gold_file, predictions_file_path=predictions_file
+    )
+    overall = score_evaluator.get_overall_results()
+    score_evaluator.pretty_print(overall)
+
     d[experiment_id] = overall
 
     with open(output_file, "w+") as f:
@@ -260,11 +266,36 @@ if __name__ == "__main__":
     print(f" - predictions_dir: {args.predictions_dir}")
     print(f" - output_file: {args.output_file}")
 
+    if args.output_file:
+        output_file = args.output_file
+    elif args.predictions_dir != None:
+        predictions_dir = args.predictions_dir
+        if predictions_dir[-1] == "/":
+            predictions_dir = predictions_dir[:-1]
+        output_file = f"{predictions_dir}.json"
+    else:
+        output_file = "results.json"
+
+    if os.path.exists(output_file):
+        with open(output_file, "r") as f:
+            d = json.load(f)
+    else:
+        d = {}
+
     if args.predictions_dir is not None:
         predictions_dir = args.predictions_dir
         if args.predictions_dir[-1] != "/":
             predictions_dir = args.predictions_dir + "/"
         for prediction_file in glob.glob(predictions_dir + "*.json"):
+            # Extract the experiment ID from the file path.
+            file_name = os.path.basename(prediction_file)
+            experiment_id = os.path.splitext(file_name)[0]
+
+            if experiment_id in d:
+                print(f"Skipping {experiment_id} as it already exists in the output file.")
+                continue
+
+
             print()
             print(f"Evaluating {prediction_file}...")
             parse_file(

@@ -37,9 +37,9 @@ parser.add_argument(
     "--model_name_or_path",
     action="store",
     type=str,
-    default="bert-base-uncased",
-    #choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
-    help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
+    default="bert-base-cased",
+    #choices=["bert-base-cased", "albert-base-v2", "roberta-base", "gpt2"],
+    help="HuggingFace model name or path (e.g., bert-base-cased). Checkpoint from which a "
     "model is instantiated.",
 )
 parser.add_argument(

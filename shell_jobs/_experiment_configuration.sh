@@ -5,10 +5,11 @@
 ######################################################
 # Adjust the directories to your local setup.
 persistent_dir="/srv/data/drechsel/Git/bias-bench" # base dir of bias-bench repo
-gradiend_dir="${persistent_dir}/../gradiend" # base dir of gradiend repo
+gradiend_dir="${persistent_dir}/../gradient" # base dir of gradiend repo
 #####################################################
 
 changed_models_dir="${gradiend_dir}/results/changed_models"
+checkpoint_dir="${persistent_dir}/results/checkpoints"
 eval "$(conda shell.bash hook)"
 conda activate bias-bench
 export PYTHONPATH="${PYTHONPATH}:${persistent_dir}"
@@ -16,25 +17,43 @@ export PYTHONPATH="${PYTHONPATH}:${persistent_dir}"
 suffix=""
 
 male_model="${changed_models_dir}/bert-base-cased-M${suffix}"
-female_model="${gradiend_dir}/results/changed_models/bert-base-cased-F${suffix}"
-unbiased_model="${gradiend_dir}/results/changed_models/bert-base-cased-N${suffix}"
+female_model="${changed_models_dir}/bert-base-cased-F${suffix}"
+unbiased_model="${changed_models_dir}/bert-base-cased-N${suffix}"
+cda_model="${checkpoint_dir}/cda_c-bert-base-cased_t-gender_s-0"
+dropout_model="${checkpoint_dir}/dropout_c-bert-base-cased_s-0"
 
-male_model_bert_large_cased="${gradiend_dir}/results/changed_models/bert-large-cased-M${suffix}"
-female_model_bert_large_cased="${gradiend_dir}/results/changed_models/bert-large-cased-F${suffix}"
-unbiased_model_bert_large_cased="${gradiend_dir}/results/changed_models/bert-large-cased-N${suffix}"
+male_model_bert_large_cased="${changed_models_dir}/bert-large-cased-M${suffix}"
+female_model_bert_large_cased="${changed_models_dir}/bert-large-cased-F${suffix}"
+unbiased_model_bert_large_cased="${changed_models_dir}/bert-large-cased-N${suffix}"
+cda_model_bert_large_cased="${checkpoint_dir}/cda_c-bert-large-cased_t-gender_s-0"
+dropout_model_bert_large_cased="${checkpoint_dir}/dropout_c-bert-large-cased_s-0"
 
-male_roberta_model="${gradiend_dir}/results/changed_models/roberta-large-M${suffix}"
-female_roberta_model="${gradiend_dir}/results/changed_models/roberta-large-F${suffix}"
-unbiased_roberta_model="${gradiend_dir}/results/changed_models/roberta-large-N${suffix}"
+male_roberta_model="${changed_models_dir}/roberta-large-M${suffix}"
+female_roberta_model="${changed_models_dir}/roberta-large-F${suffix}"
+unbiased_roberta_model="${changed_models_dir}/roberta-large-N${suffix}"
+cda_roberta_model="${checkpoint_dir}/cda_c-roberta-large_t-gender_s-0"
+dropout_roberta_model="${checkpoint_dir}/dropout_c-roberta-large_s-0"
 
-male_distilbert_model="${gradiend_dir}/results/changed_models/distilbert-base-cased-M${suffix}"
-female_distilbert_model="${gradiend_dir}/results/changed_models/distilbert-base-cased-F${suffix}"
-unbiased_distilbert_model="${gradiend_dir}/results/changed_models/distilbert-base-cased-N${suffix}"
+male_distilbert_model="${changed_models_dir}/distilbert-base-cased-M${suffix}"
+female_distilbert_model="${changed_models_dir}/distilbert-base-cased-F${suffix}"
+unbiased_distilbert_model="${changed_models_dir}/distilbert-base-cased-N${suffix}"
+cda_distilbert_model="${checkpoint_dir}/cda_c-distilbert-base-cased_t-gender_s-0"
+dropout_distilbert_model="${checkpoint_dir}/dropout_c-distilbert-base-cased_s-0"
 
+male_gpt2_model="${changed_models_dir}/gpt2-M${suffix}"
+female_gpt2_model="${changed_models_dir}/gpt2-F${suffix}"
+unbiased_gpt2_model="${changed_models_dir}/gpt2-N${suffix}"
+cda_gpt2_model="${checkpoint_dir}/cda_c-gpt2_t-gender_s-0"
+dropout_gpt2_model="${checkpoint_dir}/dropout_c-gpt2_s-0"
 
-debiased_bert_models="${male_model} ${female_model} ${unbiased_model} ${male_model_bert_large_cased} ${female_model_bert_large_cased} ${unbiased_model_bert_large_cased}"
-debiased_roberta_models="${male_roberta_model} ${female_roberta_model} ${unbiased_roberta_model}"
-debiased_distilbert_models="${male_distilbert_model} ${female_distilbert_model} ${unbiased_distilbert_model}"
+gradiend_debiased_bert_models="${male_model} ${female_model} ${unbiased_model} ${male_model_bert_large_cased} ${female_model_bert_large_cased} ${unbiased_model_bert_large_cased}"
+debiased_bert_models="${gradiend_debiased_bert_models} ${cda_model} ${dropout_model} ${cda_model_bert_large_cased} ${dropout_model_bert_large_cased}"
+gradiend_debiased_roberta_models="${male_roberta_model} ${female_roberta_model} ${unbiased_roberta_model}"
+debiased_roberta_models="${gradiend_debiased_roberta_models} ${cda_roberta_model} ${dropout_roberta_model}"
+gradiend_debiased_distilbert_models="${male_distilbert_model} ${female_distilbert_model} ${unbiased_distilbert_model}"
+debiased_distilbert_models="${gradiend_debiased_distilbert_models} ${cda_distilbert_model} ${dropout_distilbert_model}"
+gradiend_debiased_gpt2_models="${male_gpt2_model} ${female_gpt2_model} ${unbiased_gpt2_model}"
+debiased_gpt2_models="${gradiend_debiased_gpt2_models} ${cda_gpt2_model} ${dropout_gpt2_model}"
 
 
 model_name_or_paths=(
@@ -42,6 +61,7 @@ model_name_or_paths=(
   "bert-large-cased"
   "roberta-large"
   "distilbert-base-cased"
+  "gpt2"
 )
 
 declare -A model_name_or_path_to_model=(
@@ -49,17 +69,30 @@ declare -A model_name_or_path_to_model=(
     ["bert-large-cased"]="BertModel"
     ["roberta-large"]="RobertaModel"
     ["distilbert-base-cased"]="DistilbertModel"
+    ["gpt2"]="GPT2Model"
+)
+
+declare -A model_to_debiased_gradiend_models=(
+    ["BertModel"]="${gradiend_debiased_bert_models}"
+    ["RobertaModel"]="${gradiend_debiased_roberta_models}"
+    ["DistilbertModel"]="${gradiend_debiased_distilbert_models}"
+    ["GPT2Model"]="${gradiend_debiased_gpt2_models}"
 )
 
 declare -A model_to_debiased_models=(
     ["BertModel"]="${debiased_bert_models}"
     ["RobertaModel"]="${debiased_roberta_models}"
     ["DistilbertModel"]="${debiased_distilbert_models}"
+    ["GPT2Model"]="${debiased_gpt2_models}"
 )
 
-seeds=(0 1 2 3 4 5 6 7 8 9)
 seeds=(0 1 2)
 
+projection_matrix_prefixes=(
+  ""
+  "leace_"
+  "rlace_"
+)
 
 bias_types=(
     "gender"
@@ -72,6 +105,7 @@ models=(
     "BertModel"
     "RobertaModel"
     "DistilbertModel"
+    "GPT2Model"
 )
 
 # Baseline masked language models.
@@ -84,7 +118,7 @@ masked_lm_models=(
 
 # Baseline causal language models.
 causal_lm_models=(
-    #"GPT2LMHeadModel"
+    "GPT2LMHeadModel"
 )
 
 # Debiased masked language models.
@@ -150,6 +184,7 @@ sentence_debias_models=(
     "SentenceDebiasBertLargeModel"
     "SentenceDebiasRobertaModel"
     "SentenceDebiasDistilbertModel"
+    "SentenceDebiasGPT2Model"
 )
 
 inlp_models=(
@@ -157,6 +192,7 @@ inlp_models=(
     "INLPBertLargeModel"
     "INLPRobertaModel"
     "INLPDistilbertModel"
+    "INLPGPT2Model"
 )
 
 cda_models=(
@@ -164,6 +200,7 @@ cda_models=(
     "CDABertLargeModel"
     "CDARobertaModel"
     "CDADistilbertModel"
+    "CDAGPT2Model"
 )
 
 dropout_models=(
@@ -171,6 +208,7 @@ dropout_models=(
     "DropoutBertLargeModel"
     "DropoutRobertaModel"
     "DropoutDistilbertModel"
+    "DropoutGPT2Model"
 )
 
 

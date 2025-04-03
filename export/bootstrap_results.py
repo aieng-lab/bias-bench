@@ -22,6 +22,17 @@ class ConfidenceMetric:
         self.print_baseline_diff = print_baseline_diff
         self.print_margin = print_margin
 
+    def __eq__(self, other):
+        if isinstance(other, (int, float)):
+            return self.score == other
+        if isinstance(other, ConfidenceMetric):
+            return self.score == other.score
+        return NotImplemented
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
     def print(self, fmt='.2f', baseline=None, is_best_metric=False, is_significant=False):
         s = rf'{self.score:{fmt}}'
 
@@ -63,8 +74,8 @@ class ConfidenceMetric:
         if self.reference_score is None or lower <= self.reference_score <= upper:
             return ''
 
-        print(f'Reference score {self.reference_score} not in range {lower} - {upper}')
-        return '*'
+        print(f'Reference score {self.reference_score:.3f} not in range {lower} - {upper}')
+        return f'*!({self.reference_score})'
 
 class BestAtFiftyConfidenceMetric(ConfidenceMetric):
     def __init__(self, *args, **kwargs):
@@ -90,6 +101,22 @@ class BestAtFiftyConfidenceMetric(ConfidenceMetric):
         else: # score > baseline:
             return r'\ua{$' + change_fmt + '$}'
 
+    def __lt__(self, other):
+        if isinstance(other, (int, float)):
+            return abs(self.score - 50) > abs(other - 50)
+        if isinstance(other, ConfidenceMetric):
+            return abs(self.score - 50) > abs(other.score - 50)
+        return NotImplemented
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        return not self <= other
+
+    def __ge__(self, other):
+        return not self < other
+
 class BestAtZeroConfidenceMetric(ConfidenceMetric):
     def __init__(self, *args, **kwargs):
         super().__init__(baseline_diff_command=self.best_at_zero, *args, **kwargs)
@@ -114,6 +141,22 @@ class BestAtZeroConfidenceMetric(ConfidenceMetric):
         else: # score > baseline:
             return r'\ua{$' + change_fmt + '$}'
 
+    def __lt__(self, other):
+        if isinstance(other, (int, float)):
+            return abs(self.score) > abs(other)
+        if isinstance(other, ConfidenceMetric):
+            return abs(self.score) > abs(other.score)
+        return NotImplemented
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        return not self <= other
+
+    def __ge__(self, other):
+        return not self < other
+
 
 class BestAtLargestConfidenceMetric(ConfidenceMetric):
     def __init__(self, *args, **kwargs):
@@ -135,6 +178,21 @@ class BestAtLargestConfidenceMetric(ConfidenceMetric):
             return r'\dab{$' + change_fmt + '$}'
         else: # score > baseline:
             return r'\uag{$' + change_fmt + '$}'
+
+    def __lt__(self, other):
+        if isinstance(other, (int, float)):
+            return self.score < other
+        if isinstance(other, ConfidenceMetric):
+            return self.score < other.score
+        return NotImplemented
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __gt__(self, other):
+        return not self <= other
+
+    def __ge__(self, other):
+        return not self < other
 
 def fmt_eq(float_1, float_2, fmt):
     return f'{float_1:{fmt}}' == f'{float_2:{fmt}}'
@@ -186,6 +244,9 @@ class ModelResults:
         if self.baseline is None:
             return False
 
+        if metric not in self.baseline:
+            return False
+
         # check if there is an intersection between the confidence intervals of baseline and score
         metric_score = self.scores[metric]
         baseline_score = self.baseline[metric]
@@ -200,30 +261,57 @@ class ModelResults:
         return lower_score > upper_baseline or upper_score < lower_baseline
 
 class Variant:
-    def __init__(self, model, suffix, pretty):
+    def __init__(self, model, suffix, pretty, model_prefix='', model_suffix=''):
         self.model = model
         self.suffix = suffix
         self.pretty = pretty
+        self.model_prefix = model_prefix
+        self.model_suffix = model_suffix
 
     def __str__(self):
         return self.pretty
 
-BASE = Variant('', '', '')
+BASE = Variant('', '', 'Base Model')
 GRADIEND_BPI = Variant('', '-N', r'\gradiendbpi')
 GRADIEND_FPI = Variant('', '-F', r'\gradiendfpi')
 GRADIEND_MPI = Variant('', '-M', r'\gradiendmpi')
-GRADIEND_BPI_INLP = Variant('INLP', '-N', r'\gradiendbpi\ + \inlp')
-GRADIEND_BPI_SENTENCE_DEBIAS = Variant('SentenceDebias', '-N', r'\gradiendbpi\ + \sentencedebias \!\!')
 CDA = Variant('CDA', '-gender_s-0', r'\cda')
 DROPOUT = Variant('Dropout', '-gender_s-0', r'\dropout')
 INLP = Variant('INLP', '', r'\inlp')
+RLACE = Variant('rlace_INLP', '', r'\rlace')
+LEACE = Variant('leace_INLP', '', r'\leace')
 SELF_DEBIAS = Variant('SelfDebias', '', r'\selfdebias')
 SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\sentencedebias')
 
+GRADIEND_BPI_INLP = Variant('INLP', '-N', r'\gradiendbpi\ + \inlp')
+GRADIEND_BPI_RLACE = Variant('rlace_INLP', '-N', r'\gradiendbpi\ + \rlace')
+GRADIEND_BPI_LEACE = Variant('leace_INLP', '-N', r'\gradiendbpi\ + \leace')
+GRADIEND_BPI_SENTENCE_DEBIAS = Variant('SentenceDebias', '-N', r'\gradiendbpi\ + \sentencedebias \!\!')
+CDA_INLP = Variant('INLP', '', r'\cda\, + \inlp', model_prefix='cda_c-', model_suffix='_t-gender_s-0')
+CDA_SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\cda\, + \sentencedebias', model_prefix='cda_c-', model_suffix='_t-gender_s-0')
+DROPOUT_INLP = Variant('INLP', '', r'\dropout \, + \inlp', model_prefix='dropout_c-', model_suffix='_s-0')
+DROPOUT_SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\dropout \, + \sentencedebias', model_prefix='dropout_c-', model_suffix='_s-0')
+
 VARIANTS = [
-    GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI, GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS,
-    CDA, DROPOUT, INLP, SELF_DEBIAS, SENTENCE_DEBIAS
+    GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI, GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS, CDA_INLP, DROPOUT_INLP,
+    CDA, DROPOUT, INLP, RLACE, LEACE, SELF_DEBIAS, SENTENCE_DEBIAS
 ]
+STRUCTURED_VARIANTS = [
+    [BASE],
+    [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI],
+    [CDA, DROPOUT, INLP, RLACE, LEACE, SELF_DEBIAS, SENTENCE_DEBIAS],
+    [GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS],
+    [CDA_INLP, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS, CDA_SENTENCE_DEBIAS],
+]
+
+STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS = [
+    [BASE],
+    [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI],
+    [CDA, DROPOUT, INLP, RLACE, LEACE, SENTENCE_DEBIAS],
+    [GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS],
+    [CDA_INLP, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS, CDA_SENTENCE_DEBIAS],
+]
+
 
 class Metric:
     def __init__(self, id, pretty_name, best=max):
@@ -297,6 +385,7 @@ models = {
     'bert-large-cased': 'BertLarge',
     'distilbert-base-cased': 'Distilbert',
     'roberta-large': 'Roberta',
+    'gpt2': 'GPT2',
 }
 
 model_type_pretty = {
@@ -304,18 +393,22 @@ model_type_pretty = {
     'BertLarge': r'\bertlarge',
     'Distilbert': r'\distilbert',
     'Roberta': r'\roberta',
+    'GPT2': r'\gpttwo',
 }
+
 def get_experiments(base_model, variant, metrics=None):
     model_type = models[base_model]
     base_model_pretty = model_type_pretty[model_type]
-    variant_suffix = (variant.suffix if variant in [BASE, GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI, GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS] else "") + ("_t-gender" if variant in [CDA, SELF_DEBIAS, SENTENCE_DEBIAS, INLP, GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS] else "")
+    variant_suffix = (variant.suffix if variant in [BASE, GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI, GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS, ] else "") + ("_t-gender" if variant in [CDA, SELF_DEBIAS, SENTENCE_DEBIAS, INLP, RLACE, LEACE, GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS, CDA_INLP, CDA_SENTENCE_DEBIAS, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS] else "")
+
+    model_head = 'LMHeadModel' if model_type in {'GPT2'} else 'ForMaskedLM'
 
     model_type_modified = model_type.removesuffix("Large") if variant in [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI] else model_type
-    crows = f'results/crows/crows_m-{variant.model}{model_type_modified}ForMaskedLM_c-{base_model}{variant.suffix.removesuffix("-gender_s-0")}_t-gender.json'
-    seat = f'results/seat/seat_m-{variant.model}{model_type.removesuffix("Large") if variant in [BASE] else model_type_modified}Model_c-{base_model}{variant_suffix}.json'
+    crows = f'results/crows/crows_m-{variant.model}{model_type_modified}{model_head}_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant.suffix.removesuffix("-gender_s-0")}_t-gender.json'
+    seat = f'results/seat/seat_m-{variant.model}{model_type.removesuffix("Large") if variant in [BASE] else model_type_modified}Model_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant_suffix}.json'
     stereoset_data = 'results/stereoset.json'
-    stereoset = f'stereoset_m-{variant.model}{model_type_modified}ForMaskedLM_c-{base_model}{variant_suffix}{"_s-0" if variant in [DROPOUT, CDA] else ""}'
-    glue = f'results/checkpoints/glue_m-{variant.model}{model_type.removesuffix("Large")}ForSequenceClassification_c-{base_model}{variant_suffix}/glue_results_1000_0.95.json'
+    stereoset = f'stereoset_m-{variant.model}{model_type_modified}{model_head}_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant_suffix}{"_s-0" if variant in [DROPOUT, CDA] else ""}'
+    glue = f'results/checkpoints/glue_m-{variant.model}{model_type.removesuffix("Large")}ForSequenceClassification_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant_suffix}/glue_results_1000_0.95.json'
 
     # load the files
     def load_if_exists(file):
@@ -325,11 +418,13 @@ def get_experiments(base_model, variant, metrics=None):
                     return json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
+        else:
+            print(f"File {file} not found")
         return None
 
     crows = load_if_exists(crows)
     seat = load_if_exists(seat)
-    stereoset_data = load_if_exists(stereoset_data)
+    stereoset_data = load_if_exists(stereoset_data) or []
     glue = load_if_exists(glue)
 
     scores = {}
@@ -369,6 +464,8 @@ def get_experiments(base_model, variant, metrics=None):
         margin = lms_data['LM Score_ci_margin']
         ref_score = lms_data['LM Score']
         scores['lms'] = BestAtLargestConfidenceMetric(score, margin, reference_score=ref_score)
+    elif stereoset not in stereoset_data:
+        print(f"Missing stereoset data for {stereoset}")
 
     # create glue metrics
     glue_sub_metrics = [GLUE_COLA, GLUE_MNLI, GLUE_MRPC, GLUE_QNLI, GLUE_QQP, GLUE_RTE, GLUE_SST2, GLUE_STSB, GLUE_WNLI]
@@ -423,7 +520,7 @@ def read_results(models, metrics, variants):
 
 def print_table(models=list(models),
                 metrics=[SS, SEAT, CROWS, LMS, GLUE],
-                variants=[[BASE], [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI], [CDA, DROPOUT, INLP, SELF_DEBIAS, SENTENCE_DEBIAS], [GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS]],
+                variants=STRUCTURED_VARIANTS,
                 fmt='.2f'):
     all_variants = [variant for variant_group in variants for variant in variant_group]
     results = read_results(metrics=metrics, variants=all_variants, models=models)
@@ -476,7 +573,7 @@ def print_main_table():
 def print_full_glue_table():
     data = print_table(
         metrics=[GLUE_COLA, GLUE_MNLI_M, GLUE_MNLI_MM, GLUE_MRPC, GLUE_QNLI, GLUE_QQP, GLUE_RTE, GLUE_SST2, GLUE_STSB, GLUE_WNLI, GLUE_AVG],
-        variants=[[BASE], [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI], [CDA, DROPOUT, INLP, SENTENCE_DEBIAS], [GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS]],
+        variants=STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
     )
 
     # calculate the average confidence margin for the GLUE sub-metrics
@@ -533,12 +630,12 @@ def print_full_glue_table():
 
 def print_full_seat_table():
     print_table(
-        variants=[[BASE], [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI], [CDA, DROPOUT, INLP, SENTENCE_DEBIAS], [GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS]],
+        variants=STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
         metrics=[SEAT_6, SEAT_6B, SEAT_7, SEAT_7b, SEAT_8, SEAT_8b, SEAT_AVG],
         fmt='.2f',
     )
 
 if __name__ == '__main__':
     print_main_table()
-    print_full_glue_table()
-    print_full_seat_table()
+    #print_full_glue_table()
+    #print_full_seat_table()

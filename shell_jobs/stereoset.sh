@@ -80,3 +80,18 @@ for model in ${debiased_roberta_models[@]}; do
         echo "${experiment_id} already computed"
     fi
 done
+
+
+for model in ${debiased_gpt2_models[@]}; do
+    base_name=$(basename "$model")
+    experiment_id="stereoset_m-GPT2LMHeadModel_c-${base_name}"
+    if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
+        echo ${experiment_id}
+        python experiments/stereoset.py \
+            --model "GPT2LMHeadModel" \
+            --model_name_or_path ${model} \
+            --persistent_dir ${persistent_dir}
+    else
+        echo "${experiment_id} already computed"
+    fi
+done

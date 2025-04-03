@@ -42,9 +42,9 @@ parser.add_argument(
     "--model_name_or_path",
     action="store",
     type=str,
-    default="bert-base-uncased",
-    #choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
-    help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
+    default="bert-base-cased",
+    #choices=["bert-base-cased", "albert-base-v2", "roberta-base", "gpt2"],
+    help="HuggingFace model name or path (e.g., bert-base-cased). Checkpoint from which a "
     "model is instantiated.",
 )
 parser.add_argument(
@@ -79,6 +79,8 @@ if __name__ == "__main__":
     model.eval()
     tokenizer = load_tokenizer(args.model_name_or_path)
 
+    output_file = f"{args.persistent_dir}/results/seat/{experiment_id}.json"
+
     runner = SEATRunner(
         experiment_id=experiment_id,
         tests=args.tests,
@@ -87,10 +89,11 @@ if __name__ == "__main__":
         parametric=args.parametric,
         model=model,
         tokenizer=tokenizer,
+        output_file=output_file,
     )
     results = runner()
     print(results)
 
     os.makedirs(f"{args.persistent_dir}/results/seat", exist_ok=True)
-    with open(f"{args.persistent_dir}/results/seat/{experiment_id}.json", "w") as f:
+    with open(output_file, "w") as f:
         json.dump(results, f)

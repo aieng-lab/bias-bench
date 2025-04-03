@@ -38,7 +38,7 @@ class StereoSetRunner:
         self,
         intrasentence_model,
         tokenizer,
-        model_name_or_path="bert-base-uncased",
+        model_name_or_path="bert-base-cased",
         input_file="data/bias.json",
         batch_size=1,
         max_seq_length=128,
@@ -52,7 +52,7 @@ class StereoSetRunner:
             intrasentence_model: HuggingFace model (e.g., BertForMaskedLM) to evaluate on the
                 StereoSet intrasentence task. This can potentially be a debiased model.
             tokenizer: HuggingFace tokenizer (e.g., BertTokenizer) used for pre-processing.
-            model_name_or_path: HuggingFace model name (e.g., bert-base-uncased).
+            model_name_or_path: HuggingFace model name (e.g., bert-base-cased).
             input_file (`str`): Path to the file containing the dataset.
             batch_size (`int`): Batch size used for both the intrasentence and intersentence
                 tasks.

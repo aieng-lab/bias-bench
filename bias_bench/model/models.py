@@ -708,6 +708,11 @@ class SelfDebiasDistilbertForMaskedLM:
         model = MaskedLMWrapper(model_name_or_path)
         return model
 
+class SelfDebiasGPT2LMHeadModel:
+    def __new__(self, model_name_or_path):
+        model = GPT2Wrapper(model_name_or_path, use_cuda=False)
+        return model
+
 
 class MovementPruningBertForMaskedLM:
     def __new__(self, model_name_or_path):

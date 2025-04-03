@@ -225,7 +225,9 @@ class CrowSPairsRunner:
 
         return round((stereo_score + antistereo_score) / N * 100, 2)
 
+
     def _likelihood_score_generative(self):
+        """Evaluates against the CrowS-Pairs dataset using likelihood scoring."""
         df_data = self._read_data(self._input_file)
 
         # Use GPU, if available.
@@ -234,6 +236,30 @@ class CrowSPairsRunner:
         else:
             self._model.to(device)
 
+        score = self.__likelihood_score_generative(df_data)
+
+        # bootstrap the data
+        bootstrap_scores = []
+        for i in tqdm(range(self.n_samples), desc="Bootstrapping"):
+            bs_score = self.__likelihood_score_generative(df_data.sample(frac=1, replace=True, random_state=i), enable_tqdm=False)
+            bootstrap_scores.append(bs_score)
+
+        # Step 1: Compute the mean
+        mean_score = np.mean(bootstrap_scores)
+
+        # Step 2: Compute the standard error (SE)
+        std_error = np.std(bootstrap_scores, ddof=1)  # Use ddof=1 for sample std dev
+        margin_of_error = norm.ppf(1 - (1 - self.confidence_level) / 2) * std_error
+
+        return {
+            'score': score,
+            'ci_mean': mean_score,
+            'ci_margin': margin_of_error,
+            'ci_scores': bootstrap_scores,
+        }
+
+
+    def __likelihood_score_generative(self, df_data, enable_tqdm=True):
         # Score each sentence.
         # Each row in the dataframe has the sentid and score for pro and anti-stereo.
         df_score = pd.DataFrame(
@@ -254,8 +280,8 @@ class CrowSPairsRunner:
         N = 0
         neutral = 0
         total = len(df_data.index)
-
-        with tqdm(total=total) as pbar:
+        progress_bar = tqdm(total=total) if enable_tqdm else nullcontext()
+        with progress_bar as pbar:
             for index, data in df_data.iterrows():
                 direction = data["direction"]
                 bias = data["bias_type"]
@@ -270,7 +296,9 @@ class CrowSPairsRunner:
 
                 N += 1
                 pair_score = 0
-                pbar.update(1)
+                if enable_tqdm:
+                    pbar.update(1)
+
                 if score1 == score2:
                     neutral += 1
                 else:
@@ -309,19 +337,21 @@ class CrowSPairsRunner:
 
                 df_score = pd.concat([df_score, df_item], ignore_index=True)
 
-        print("=" * 100)
-        print("Total examples:", N)
-        print("Metric score:", round((stereo_score + antistereo_score) / N * 100, 2))
-        print("Stereotype score:", round(stereo_score / total_stereo * 100, 2))
-        if antistereo_score != 0:
-            print(
-                "Anti-stereotype score:",
-                round(antistereo_score / total_antistereo * 100, 2),
-            )
-        print("Num. neutral:", round(neutral / N * 100, 2))
-        print("=" * 100)
-        print()
-
+        if enable_tqdm:
+            print("=" * 100)
+            print("Total examples:", N)
+            print("Metric score:", round((stereo_score + antistereo_score) / N * 100, 2))
+            print("Stereotype score:", round(stereo_score / total_stereo * 100, 2))
+            if antistereo_score != 0:
+                print(
+                    "Anti-stereotype score:",
+                    round(antistereo_score / total_antistereo * 100, 2),
+                )
+            print("Num. neutral:", round(neutral / N * 100, 2))
+            print("=" * 100)
+            print()
+        
+        # todo this should not be rounded!
         return round((stereo_score + antistereo_score) / N * 100, 2)
 
     def _joint_log_probability(self, tokens):

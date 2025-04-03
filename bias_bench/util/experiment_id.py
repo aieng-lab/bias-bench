@@ -16,7 +16,10 @@ def generate_experiment_id(
     if isinstance(model_name_or_path, str):
         # remove everything from the path before the gradiend folder
         model_name_or_path = re.sub(r'.*gradiend[\\/]', '', model_name_or_path)
+        model_name_or_path = re.sub(r'.*gradient[\\/]', '', model_name_or_path) # todo deprecate
+        model_name_or_path = re.sub(r'.*bench[\\/]', '', model_name_or_path)
         model_name_or_path = (model_name_or_path.replace('results/', '')
+                              .replace('checkpoints/', '')
                               .replace('changed_models/', '')
                               .replace('../', '')
                               .replace('/', '-')

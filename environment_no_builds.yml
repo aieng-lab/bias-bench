@@ -202,4 +202,3 @@ dependencies:
   - pip:
       - protobuf==5.28.3
       - sentencepiece==0.2.0
-prefix: /srv/data/drechsel/miniconda3/envs/bias-bench

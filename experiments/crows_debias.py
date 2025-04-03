@@ -22,7 +22,7 @@ parser.add_argument(
     "--model",
     action="store",
     type=str,
-    default="SentenceDebiasBertForMaskedLM",
+    default="BertForMaskedLM",
     help="Model to evalute (e.g., SentenceDebiasBertForMaskedLM). Typically, these "
     "correspond to a HuggingFace class.",
 )
@@ -30,8 +30,8 @@ parser.add_argument(
     "--model_name_or_path",
     action="store",
     type=str,
-    default="bert-base-uncased",
-    help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
+    default="bert-base-cased",
+    help="HuggingFace model name or path (e.g., bert-base-cased). Checkpoint from which a "
     "model is instantiated.",
 )
 parser.add_argument(
@@ -59,14 +59,19 @@ parser.add_argument(
     choices=["gender", "race", "religion"],
     help="Determines which CrowS-Pairs dataset split to evaluate against.",
 )
-
+parser.add_argument(
+    "--projection_prefix",
+    default="",
+    choices=["", 'rlace_', 'leace_']
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
+
     experiment_id = generate_experiment_id(
         name="crows",
-        model=args.model,
+        model=args.projection_prefix + args.model,
         model_name_or_path=args.model_name_or_path,
         bias_type=args.bias_type,
     )

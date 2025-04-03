@@ -18,15 +18,17 @@ cd bias-bench
 conda create --file environment.yml
 ```
 
-Install [aieng-lab/gradiend](https://github.com/aieng-lab/gradiend) for the GRADIEND model training. Both repositories should be in the same directory.
+Install [aieng-lab/gradiend](https://github.com/aieng-lab/gradiend) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
+
 
 ## Required Datasets
 Below, a list of the external datasets required by this repository is provided:
 
-Dataset | Download Link | Notes | Download Directory
---------|---------------|-------|-------------------
+Dataset | Download Link                                                                                  | Notes | Download Directory
+--------|------------------------------------------------------------------------------------------------|-------|-------------------
 Wikipedia-2.5 | [Download](https://drive.google.com/file/d/1JSlm8MYDbNjpMPnKbb91T-xZnlWAZmZl/view?usp=sharing) | English Wikipedia dump used for SentenceDebias and INLP. | `data/text`
 Wikipedia-10 | [Download](https://drive.google.com/file/d/1boQTn44RnHdxWeUKQAlRgQ7xrlQ_Glwo/view?usp=sharing) | English Wikipedia dump used for CDA and Dropout. | `data/text`
+RLACE train data | [Download](https://nlp.biu.ac.il/~ravfogs/rlace-cr/bios/bios_data/train.pickle)                | Data used for RLACE. | `data/rlace`
 
 Each dataset should be downloaded to the specified path, relative to the root directory of the project.
 
@@ -50,6 +52,8 @@ To recreate the experiments performed in the paper, you can run the following sc
 * `counterfactual_augmentation.sh` to create the CDA models
 * `dropout.sh` to create the Dropout models
 * `inlp_projection_matrix.sh` to create the INLP models
+* `rlace_projection_matrix.sh` to create the RLACE models
+* `leace_projection_matrix.sh` to create the LEACE models
 * `sentence_debias_subspace.sh` to create the SentenceDebias models
 * `crows.sh` to evaluate the CrowS-Pairs benchmark for the base models
 * `crows_debias.sh` to evaluate the CrowS-Pairs benchmark for the debiased models
@@ -69,8 +73,11 @@ You may need to adjust the paths in `shell_jobs/_experiment_configuration.sh` to
 * To run INLP models against any of the benchmarks, you will first need to run `experiments/inlp_projection_matrix.py`.
 * `stereoset.sh` and `stereoset_debias.sh` only compute the raw results for StereoSet. To compute the SS metrics, you need to run `experiments/stereoset_evaluation.py`.
 * `glues.sh` only computes the raw results for GLUE and metrics for each sub-score. To compute the bootstrap overall metrics, run `experiments/glue_bootstrap_evaluation.py`.
-* `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`) to generate the result tables presented in the paper.
-
+* `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`) to generate the result tables presented in the paper. Moreover, `export/rank.py` calculates the mean ranks for all variants on the gender debiasing metrics. 
+* The specific behavior of the above mentioned bash scripts can be controlled by modifying the `shell_jobs/_experiment_configuration.sh` file. Important variables include:
+  * `seeds`: The random seeds used for the experiments, default is `0 1 2`.
+  * `projection_matrix_prefixes`: The prefixes used to identify which projection matrix version is used, i.e., no prefix `""` for the default INLP, `leace_` for LEACE, and `rlace_` for RLACE.
+  * `debiased_roberta_models`, `debiased_gpt2_models`, etc. collect the debiased models for each base model. You can simply add the path to your debiased models here to evaluate them against the benchmarks.
 
 ## Acknowledgements
 This repository makes use of code from the following repositories:
@@ -83,6 +90,8 @@ This repository makes use of code from the following repositories:
 * [Null It Out: Guarding Protected Attributes by Iterative Nullspace Projection](https://github.com/shauli-ravfogel/nullspace_projection)
 * [Towards Understanding and Mitigating Social Biases in Language Models](https://github.com/pliang279/lm_bias)
 * [Self-Diagnosis and Self-Debiasing: A Proposal for Reducing Corpus-Based Bias in NLP](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00434/108865/Self-Diagnosis-and-Self-Debiasing-A-Proposal-for)
+* [Linear Adversarial Concept Ereasure](https://github.com/shauli-ravfogel/rlace-icml)
+* [Least-Squares Concept Ereasure (LEACE)](https://github.com/EleutherAI/concept-erasure)
 
 We thank the authors for making their code publicly available.
 

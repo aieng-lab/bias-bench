@@ -474,7 +474,7 @@ def main():
     )
     print("=" * 40)
 
-    if model_args.model_name_or_path == "gpt2":
+    if 'gpt2' in model_args.model_name_or_path:
         # Define a padding token
         tokenizer.pad_token = tokenizer.eos_token
         model.config.pad_token_id = tokenizer.pad_token_id
@@ -645,13 +645,11 @@ def main():
     eval_steps = max(1, int(len(eval_dataset) * eval_fraction // training_args.per_device_eval_batch_size))
 
     print(f"Evaluation steps set to: {eval_steps}")
-    # Define the early stopping callback
-    early_stopping_callback = EarlyStoppingCallback(
-        early_stopping_patience=4,  # Number of evaluation steps with no improvement
-        early_stopping_threshold=0.0  # Minimum change to qualify as an improvement
-    )
+
 
     if data_args.early_stopping:
+        raise NotImplementedError("Early stopping not implemented/ properly tested yet")
+
         def copy_and_update_training_args(original_args, **overrides):
             """
             Create a new TrainingArguments instance by copying all properties from an existing one

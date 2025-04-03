@@ -417,8 +417,10 @@ def main():
             config.hidden_dropout_prob = 0.20
             config.attention_probs_dropout_prob = 0.15
         else:
-            config.hidden_dropout_prob = 0.05
-            config.attention_probs_dropout_prob = 0.05
+            raise ValueError(
+                f"Model type {config.model_type} currently not supported! Please specify the dropout parameters!."
+            )
+
 
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,

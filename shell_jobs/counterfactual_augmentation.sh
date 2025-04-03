@@ -34,3 +34,29 @@ for seed in ${seeds[@]}; do
         done
     done
 done
+
+
+for seed in ${seeds[@]}; do
+    for bias_type in ${bias_types[@]}; do
+        experiment_id="cda_c-gpt2_t-${bias_type}_s-${seed}"
+        if [ ! -d "${persistent_dir}/checkpoints/${experiment_id}" ]; then
+            echo ${experiment_id}
+            python experiments/run_clm.py \
+                    --model_name_or_path "gpt2" \
+                    --do_train \
+                    --train_file "${persistent_dir}/data/text/wikipedia-10.txt" \
+                    --max_steps 2000 \
+                    --per_device_train_batch_size 8 \
+                    --gradient_accumulation_steps 32 \
+                    --save_steps 500 \
+                    --preprocessing_num_workers 4 \
+                    --counterfactual_augmentation "${bias_type}" \
+                    --seed ${seed} \
+                    --output_dir "${persistent_dir}/results/checkpoints/${experiment_id}" \
+                    --persistent_dir ${persistent_dir}
+            else
+                echo "${experiment_id} already computed"
+        fi
+    done
+done
+
