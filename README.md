@@ -15,7 +15,7 @@ The main difference compared to the original repository [bias-bench](https://git
 ```bash
 git clone https://github.com/aieng-lab/bias-bench.git
 cd bias-bench 
-conda create --file environment.yml
+conda env create --file environment.yml
 ```
 
 Install [aieng-lab/gradiend](https://github.com/aieng-lab/gradiend) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
