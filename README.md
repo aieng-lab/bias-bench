@@ -3,7 +3,7 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-2502.01406-blue.svg)](https://arxiv.org/abs/2502.01406)
 
-This repository contains the official source code for the evaluation of [GRADIEND: Monosemantic Feature Learning within Neural Networks Applied to Gender Debiasing](todo).
+This repository contains the official source code for the evaluation of [GRADIEND: Monosemantic Feature Learning within Neural Networks Applied to Gender Debiasing](https://github.com/aieng-lab/gradiend).
 
 The main difference compared to the original repository [bias-bench](https://github.com/McGill-NLP/bias-bench) are:
 
