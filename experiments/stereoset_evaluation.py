@@ -291,15 +291,14 @@ if __name__ == "__main__":
             file_name = os.path.basename(prediction_file)
             experiment_id = os.path.splitext(file_name)[0]
 
-            if experiment_id in d:
+            if experiment_id in d:  # and 'llama' not in experiment_id and 'gpt' not in experiment_id: # todo delete
                 print(f"Skipping {experiment_id} as it already exists in the output file.")
                 continue
-
 
             print()
             print(f"Evaluating {prediction_file}...")
             parse_file(
-                f"{args.persistent_dir}/data/stereoset/test.json", prediction_file
+                f"{args.persistent_dir}/data/stereoset/test.json", prediction_file, force=True
             )
     else:
         parse_file(

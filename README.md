@@ -7,8 +7,9 @@ This repository contains the official source code for the evaluation of [GRADIEN
 
 The main difference compared to the original repository [bias-bench](https://github.com/McGill-NLP/bias-bench) are:
 
-- added support for other base models (e.g., `distilbert-base-cased`, `roberta-large`, `bert-large-cased`, `microsoft/deberta-v3-large`)
+- added support for other base models (e.g., `distilbert-base-cased`, `roberta-large`, `bert-large-cased`, `microsoft/deberta-v3-large`, `meta-llama/Llama-3.2-3B`, `meta-llama/Llama-3.2-3B-Instruct`)
 - added support for the GRADIEND model evaluation (the training of the GRADIEND models needs to be done in the original GRADIEND repository)
+- added support for RLACE and LEACE debiasing approach, similar to INLP
 - added support for bootstrapping evaluation of all evaluated metrics (SEAT, SS, CrowS, LMS, GLUE)
 
 ## Install
@@ -18,17 +19,21 @@ cd bias-bench
 conda env create --file environment.yml
 ```
 
-Install [aieng-lab/gradiend](https://github.com/aieng-lab/gradiend) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
+Install [`aieng-lab/gradiend`](https://github.com/aieng-lab/gradiend) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
+
+Install [`aieng-lab/lm-eval-harness`]](https://github.com/aieng-lab/lm-eval-harness) for the GLUE zero-shot evaluation of the LLaMA models. 
+
+In order to use Llama-based models, you must first accept the Llama 3.2 Community License Agreement (see e.g., [here](https://huggingface.co/meta-llama/Llama-3.2-3B)). Further, you need to export a variable `HF_TOKEN` with a HF access token associated to your HF account (alternatively, but not recommended, you could insert your HF token in `bias_bench/model/models.py#HF_TOKEN`).
 
 
 ## Required Datasets
 Below, a list of the external datasets required by this repository is provided:
 
-Dataset | Download Link                                                                                  | Notes | Download Directory
---------|------------------------------------------------------------------------------------------------|-------|-------------------
+Dataset | Download Link                                                                                  | Notes                                                    | Download Directory
+--------|------------------------------------------------------------------------------------------------|----------------------------------------------------------|-------------------
 Wikipedia-2.5 | [Download](https://drive.google.com/file/d/1JSlm8MYDbNjpMPnKbb91T-xZnlWAZmZl/view?usp=sharing) | English Wikipedia dump used for SentenceDebias and INLP. | `data/text`
-Wikipedia-10 | [Download](https://drive.google.com/file/d/1boQTn44RnHdxWeUKQAlRgQ7xrlQ_Glwo/view?usp=sharing) | English Wikipedia dump used for CDA and Dropout. | `data/text`
-RLACE train data | [Download](https://nlp.biu.ac.il/~ravfogs/rlace-cr/bios/bios_data/train.pickle)                | Data used for RLACE. | `data/rlace`
+Wikipedia-10 | [Download](https://drive.google.com/file/d/1boQTn44RnHdxWeUKQAlRgQ7xrlQ_Glwo/view?usp=sharing) | English Wikipedia dump used for CDA and Dropout.         | `data/text`
+RLACE train data | [Download](https://nlp.biu.ac.il/~ravfogs/rlace-cr/bios/bios_data/train.pickle)                | Data used for RLACE training.                            | `data/rlace`
 
 Each dataset should be downloaded to the specified path, relative to the root directory of the project.
 
@@ -48,7 +53,7 @@ We briefly describe the script(s) for each experiment below:
 * **GLUE**: `experiments/run_glue.py` is used to run the GLUE benchmark.
 * **Perplexity**: `experiments/perplexity.py` is used to compute perplexities on WikiText-2.
 
-To recreate the experiments performed in the paper, you can run the following scripts in `shell_jobs`:
+To recreate the experiments performed in the GRADIEND paper, you can run the following scripts in `shell_jobs`:
 * `counterfactual_augmentation.sh` to create the CDA models
 * `dropout.sh` to create the Dropout models
 * `inlp_projection_matrix.sh` to create the INLP models
@@ -61,10 +66,14 @@ To recreate the experiments performed in the paper, you can run the following sc
 * `seat_debias.sh` to evaluate the SEAT benchmark for the debiased models
 * `stereoset.sh` to evaluate the StereoSet benchmark for the base models
 * `stereoset_debias.sh` to evaluate the StereoSet benchmark for the debiased models
-* `glues.sh` to evaluate GLUE for all models (this script will take a long time to run, you may want to split it into multiple sub-scripts)
+* Run `python experiments/stereoset_evaluation.py` to compute the StereoSet metrics for the base and debiased models.
+* `glues.sh` to evaluate GLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
+* `glue_llama.sh` to evaluate GLUE for LLaMA models based on lm-evaluation-harness.
+* Run `python experiments/glue_zero_shot_conversion.py` to convert the GLUE zero shot results to the format expected by bias-bench.
+* Run `python experiments/glue_bootstrap_evaluation.py` to compute the bootstrap metrics for GLUE.
 
 Note that these scripts must be run from the root directory of the project.
-Moreover, before running these scripts, the gradiend results must be computed first!
+Moreover, before running these scripts, the GRADIEND results must be computed first!
 You may need to adjust the paths in `shell_jobs/_experiment_configuration.sh` to match your local setup (`persistent_dir` and `gradiend_dir`).
 
 ### Notes
@@ -90,8 +99,8 @@ This repository makes use of code from the following repositories:
 * [Null It Out: Guarding Protected Attributes by Iterative Nullspace Projection](https://github.com/shauli-ravfogel/nullspace_projection)
 * [Towards Understanding and Mitigating Social Biases in Language Models](https://github.com/pliang279/lm_bias)
 * [Self-Diagnosis and Self-Debiasing: A Proposal for Reducing Corpus-Based Bias in NLP](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00434/108865/Self-Diagnosis-and-Self-Debiasing-A-Proposal-for)
-* [Linear Adversarial Concept Ereasure](https://github.com/shauli-ravfogel/rlace-icml)
-* [Least-Squares Concept Ereasure (LEACE)](https://github.com/EleutherAI/concept-erasure)
+* [Linear Adversarial Concept Erasure](https://github.com/shauli-ravfogel/rlace-icml)
+* [Least-Squares Concept Erasure (LEACE)](https://github.com/EleutherAI/concept-erasure)
 
 We thank the authors for making their code publicly available.
 

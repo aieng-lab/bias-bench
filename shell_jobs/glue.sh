@@ -18,6 +18,9 @@ echo "Size/Model Type: $size_model_type"
 echo "Base Model Name: $base_model_name"
 echo "Base Model: $base_model"
 
+
+
+
 # Compute GLUE for the original model
 experiment_id="glue_m-${model_type}ForSequenceClassification_c-${base_model_name}"
 for seed in ${seeds[@]}; do
@@ -96,6 +99,8 @@ for seed in ${seeds[@]}; do
     done
 done
 
+
+
 # Compute GLUE for INLP
 for projection_prefix in "${projection_matrix_prefixes[@]}"; do
     experiment_id="glue_m-${projection_prefix}INLP${model_type}ForSequenceClassification_c-${base_model}_t-gender"
@@ -124,6 +129,7 @@ for projection_prefix in "${projection_matrix_prefixes[@]}"; do
         done
     done
 done
+
 
 # Compute GLUE for SentenceDebias
 experiment_id="glue_m-SentenceDebias${model_type}ForSequenceClassification_c-${base_model}_t-gender"
@@ -154,16 +160,42 @@ for seed in ${seeds[@]}; do
     done
 done
 
-# Compute GLUE for certain combinations of debiasing approaches
+
+
+# Compute GLUE for weight-debiased models (CDA, Dropout, GRADIEND_BPI/FPI/MPI) and certain combinations of debiasing approaches
 # debiased GRADIEND_BPI models (-N) with INLP/RLACE/LEACE/SENTDEBIAS and CDA/DROPOUT+INLP/SENTDEBIAS
 debiased_models=(${model_to_debiased_models[$model_type_model]})
 for model in "${debiased_models[@]}"; do
+    model_id=$(basename "$model")
+    experiment_id="glue_m-${model_type}ForSequenceClassification_c-${model_id}_t-gender"
+    for seed in ${seeds[@]}; do
+        for task in ${glue_tasks[@]}; do
+           if [ ! -f "${checkpoint_dir}/${experiment_id}/${seed}/${task}/eval_results.json" ]; then
+              echo "${experiment_id}_g-${task}_s-${seed}"
+              python experiments/run_glue.py \
+                      --model "${model_type}ForSequenceClassification" \
+                      --model_name_or_path ${model} \
+                      --task_name ${task} \
+                      --do_train \
+                      --do_eval \
+                      --do_predict \
+                      --max_seq_length 128 \
+                      --per_device_train_batch_size 32 \
+                      --learning_rate 2e-5 \
+                      --num_train_epochs 3 \
+                      --seed ${seed} \
+                      --output_dir "${checkpoint_dir}/${experiment_id}/${seed}/${task}" \
+                      --persistent_dir ${persistent_dir}
+            else
+                echo "${experiment_id}_g-${task}_s-${seed} already computed"
+            fi
+        done
+    done
 
     # perform the next experiment only if the model ends not with "-M" or "-F"
     if [[ $model != *"-M" ]] && [[ $model != *"-F" ]]; then
         echo "Model: $model"
 
-        model_id=$(basename "$model")
         for projection_prefix in "${projection_matrix_prefixes[@]}"; do
             # compute GLUE for any combination with BPI model (-N), and only for INLP with all other debiased models
             if [[ $model == *"-N" ]] || [[ $projection_prefix == "" ]]; then

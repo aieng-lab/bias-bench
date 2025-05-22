@@ -9,7 +9,7 @@ for model in ${inlp_models[@]}; do
     for projection_prefix in "${projection_matrix_prefixes[@]}"; do
         echo "Projection prefix: $projection_prefix"
         model_name=${model_to_model_name_or_path[${model}]}
-        model_id=$(echo "$model_name" | tr '/' '-')
+        model_id=$(basename "${model_name}")
         for bias_type in ${bias_types[@]}; do
             experiment_id="seat_m-${projection_prefix}${model}_c-${model_id}_t-${bias_type}"
 
@@ -70,11 +70,12 @@ for model in ${sentence_debias_models[@]}; do
         experiment_id="seat_m-${model}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}"
         if [ ! -f "${persistent_dir}/results/seat/${experiment_id}.json" ]; then
             echo ${experiment_id}
+            model_id=$(basename ${model_to_model_name_or_path[${model}]})
             python experiments/seat_debias.py \
                 --tests ${seat_tests} \
                 --model ${model} \
                 --model_name_or_path ${model_to_model_name_or_path[${model}]} \
-                --bias_direction "${persistent_dir}/results/subspace/subspace_m-${debiased_model_to_base_model[${model}]}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}.pt" \
+                --bias_direction "${persistent_dir}/results/subspace/subspace_m-${debiased_model_to_base_model[${model}]}_c-${model_id}_t-${bias_type}.pt" \
                 --bias_type ${bias_type} \
                 --persistent_dir "${persistent_dir}"
         else

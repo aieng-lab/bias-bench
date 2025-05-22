@@ -13,6 +13,11 @@ def generate_experiment_id(
     # Build the experiment ID.
     if isinstance(model, str):
         experiment_id += f"_m-{model}"
+
+    if model_name_or_path.startswith('meta-llama'):
+        model_name_or_path = model_name_or_path.removeprefix('meta-llama/')
+
+
     if isinstance(model_name_or_path, str):
         # remove everything from the path before the gradiend folder
         model_name_or_path = re.sub(r'.*gradiend[\\/]', '', model_name_or_path)

@@ -1,11 +1,14 @@
 #!/bin/bash
 # Variables for running batch jobs.
 
-
 ######################################################
 # Adjust the directories to your local setup.
 persistent_dir="/srv/data/drechsel/Git/bias-bench" # base dir of bias-bench repo
 gradiend_dir="${persistent_dir}/../gradient" # base dir of gradiend repo
+if [ -d "/root/bias-bench" ]; then
+    persistent_dir="/root/bias-bench"
+    gradiend_dir="${persistent_dir}/../gradiend" # base dir of gradiend repo
+fi
 #####################################################
 
 changed_models_dir="${gradiend_dir}/results/changed_models"
@@ -15,6 +18,9 @@ conda activate bias-bench
 export PYTHONPATH="${PYTHONPATH}:${persistent_dir}"
 
 suffix=""
+
+llama_model="meta-llama/Llama-3.2-3B"
+llama_instruct_model="meta-llama/Llama-3.2-3B-Instruct"
 
 male_model="${changed_models_dir}/bert-base-cased-M${suffix}"
 female_model="${changed_models_dir}/bert-base-cased-F${suffix}"
@@ -46,14 +52,27 @@ unbiased_gpt2_model="${changed_models_dir}/gpt2-N${suffix}"
 cda_gpt2_model="${checkpoint_dir}/cda_c-gpt2_t-gender_s-0"
 dropout_gpt2_model="${checkpoint_dir}/dropout_c-gpt2_s-0"
 
+male_llama_model="${changed_models_dir}/Llama-3.2-3B-M"
+female_llama_model="${changed_models_dir}/Llama-3.2-3B-F"
+unbiased_llama_model="${changed_models_dir}/Llama-3.2-3B-N"
+
+male_llama_instruct_model="${changed_models_dir}/Llama-3.2-3B-Instruct-M"
+female_llama_instruct_model="${changed_models_dir}/Llama-3.2-3B-Instruct-F"
+unbiased_llama_instruct_model="${changed_models_dir}/Llama-3.2-3B-Instruct-N"
+
 gradiend_debiased_bert_models="${male_model} ${female_model} ${unbiased_model} ${male_model_bert_large_cased} ${female_model_bert_large_cased} ${unbiased_model_bert_large_cased}"
 debiased_bert_models="${gradiend_debiased_bert_models} ${cda_model} ${dropout_model} ${cda_model_bert_large_cased} ${dropout_model_bert_large_cased}"
 gradiend_debiased_roberta_models="${male_roberta_model} ${female_roberta_model} ${unbiased_roberta_model}"
 debiased_roberta_models="${gradiend_debiased_roberta_models} ${cda_roberta_model} ${dropout_roberta_model}"
 gradiend_debiased_distilbert_models="${male_distilbert_model} ${female_distilbert_model} ${unbiased_distilbert_model}"
 debiased_distilbert_models="${gradiend_debiased_distilbert_models} ${cda_distilbert_model} ${dropout_distilbert_model}"
-gradiend_debiased_gpt2_models="${male_gpt2_model} ${female_gpt2_model} ${unbiased_gpt2_model}"
+gradiend_debiased_gpt2_models="${unbiased_gpt2_model} ${female_gpt2_model} ${male_gpt2_model}"
 debiased_gpt2_models="${gradiend_debiased_gpt2_models} ${cda_gpt2_model} ${dropout_gpt2_model}"
+debiased_llama_models="${unbiased_llama_model} ${female_llama_model} ${male_llama_model}"
+gradiend_debiased_llama_models="${debiased_llama_models}"
+debiased_llama_instruct_models="${unbiased_llama_instruct_model} ${female_llama_instruct_model} ${male_llama_instruct_model}"
+gradiend_debiased_llama_instruct_models="${debiased_llama_instruct_models}"
+
 
 
 model_name_or_paths=(
@@ -62,6 +81,8 @@ model_name_or_paths=(
   "roberta-large"
   "distilbert-base-cased"
   "gpt2"
+  $llama_model
+  $llama_instruct_model
 )
 
 declare -A model_name_or_path_to_model=(
@@ -70,6 +91,8 @@ declare -A model_name_or_path_to_model=(
     ["roberta-large"]="RobertaModel"
     ["distilbert-base-cased"]="DistilbertModel"
     ["gpt2"]="GPT2Model"
+    [$llama_model]="LlamaModel"
+    [$llama_instruct_model]="LlamaInstructModel"
 )
 
 declare -A model_to_debiased_gradiend_models=(
@@ -77,6 +100,8 @@ declare -A model_to_debiased_gradiend_models=(
     ["RobertaModel"]="${gradiend_debiased_roberta_models}"
     ["DistilbertModel"]="${gradiend_debiased_distilbert_models}"
     ["GPT2Model"]="${gradiend_debiased_gpt2_models}"
+    ["LlamaModel"]="${gradiend_debiased_llama_models}"
+    ["LlamaInstructModel"]="${gradiend_debiased_llama_instruct_models}"
 )
 
 declare -A model_to_debiased_models=(
@@ -84,14 +109,17 @@ declare -A model_to_debiased_models=(
     ["RobertaModel"]="${debiased_roberta_models}"
     ["DistilbertModel"]="${debiased_distilbert_models}"
     ["GPT2Model"]="${debiased_gpt2_models}"
+    ["LlamaModel"]="${debiased_llama_models}"
+    ["LlamaInstructModel"]="${debiased_llama_instruct_models}"
 )
+
 
 seeds=(0 1 2)
 
 projection_matrix_prefixes=(
   ""
-  "leace_"
   "rlace_"
+  "leace_"
 )
 
 bias_types=(
@@ -102,10 +130,12 @@ bias_types=(
 
 # Baseline models.
 models=(
-    "BertModel"
-    "RobertaModel"
-    "DistilbertModel"
     "GPT2Model"
+    "DistilbertModel"
+    "RobertaModel"
+    "BertModel"
+    "LlamaModel"
+    "LlamaInstructModel"
 )
 
 # Baseline masked language models.
@@ -118,8 +148,11 @@ masked_lm_models=(
 
 # Baseline causal language models.
 causal_lm_models=(
+    "LlamaForCausalLM"
+    "LlamaInstructForCausalLM"
     "GPT2LMHeadModel"
 )
+
 
 # Debiased masked language models.
 sentence_debias_masked_lm_models=(
@@ -160,22 +193,33 @@ self_debias_masked_lm_models=(
 # Debiased causal language models.
 sentence_debias_causal_lm_models=(
     "SentenceDebiasGPT2LMHeadModel"
+    "SentenceDebiasLlamaForCausalLM"
+    "SentenceDebiasLlamaInstructForCausalLM"
 )
 
 inlp_causal_lm_models=(
+    "INLPLlamaForCausalLM"
     "INLPGPT2LMHeadModel"
+    "INLPLlamaInstructForCausalLM"
 )
+
 
 cda_causal_lm_models=(
     "CDAGPT2LMHeadModel"
+    "CDALlamaForCausalLM"
+    "CDALlamaInstructForCausalLM"
 )
 
 dropout_causal_lm_models=(
     "DropoutGPT2LMHeadModel"
+    "DropoutLlamaForCausalLM"
+    "DropoutLlamaInstructForCausalLM"
 )
 
 self_debias_causal_lm_models=(
     "SelfDebiasGPT2LMHeadModel"
+    "SelfDebiasLlamaForCausalLM"
+    "SelfDebiasLlamaInstructForCausalLM"
 )
 
 # Debiased base models.
@@ -185,6 +229,8 @@ sentence_debias_models=(
     "SentenceDebiasRobertaModel"
     "SentenceDebiasDistilbertModel"
     "SentenceDebiasGPT2Model"
+    "SentenceDebiasLlamaModel"
+    "SentenceDebiasLlamaInstructModel"
 )
 
 inlp_models=(
@@ -193,6 +239,8 @@ inlp_models=(
     "INLPRobertaModel"
     "INLPDistilbertModel"
     "INLPGPT2Model"
+    "INLPLlamaModel"
+    "INLPLlamaInstructModel"
 )
 
 cda_models=(
@@ -201,6 +249,8 @@ cda_models=(
     "CDARobertaModel"
     "CDADistilbertModel"
     "CDAGPT2Model"
+    #"CDALlamaModel"
+    #"CDALlamaInstructModel"
 )
 
 dropout_models=(
@@ -209,7 +259,10 @@ dropout_models=(
     "DropoutRobertaModel"
     "DropoutDistilbertModel"
     "DropoutGPT2Model"
+    #"DropoutLlamaModel"
+    #"DropoutLlamaInstructModel"
 )
+
 
 
 declare -A model_to_model_name_or_path=(
@@ -220,6 +273,8 @@ declare -A model_to_model_name_or_path=(
     ["DebertaModel"]="microsoft/deberta-v3-large"
     ["DistilbertModel"]="distilbert-base-cased"
     ["GPT2Model"]="gpt2"
+    ["LlamaModel"]=$llama_model
+    ["LlamaInstructModel"]=$llama_instruct_model
     ["BertForMaskedLM"]="bert-base-cased"
     ["BertLargeForMaskedLM"]="bert-large-cased"
     ["AlbertForMaskedLM"]="albert-base-v2"
@@ -227,6 +282,8 @@ declare -A model_to_model_name_or_path=(
     ["DebertaForMaskedLM"]="microsoft/deberta-v3-large"
     ["DistilbertForMaskedLM"]="distilbert-base-cased"
     ["GPT2LMHeadModel"]="gpt2"
+    ["LlamaForCausalLM"]=$llama_model
+    ["LlamaInstructForCausalLM"]=$llama_instruct_model
     ["BertForSequenceClassification"]="bert-base-cased"
     ["BertLargeForSequenceClassification"]="bert-large-cased"
     ["AlbertForSequenceClassification"]="albert-base-v2"
@@ -234,6 +291,8 @@ declare -A model_to_model_name_or_path=(
     ["DebertaForSequenceClassification"]="microsoft/deberta-v3-large"
     ["DistilbertForSequenceClassification"]="distilbert-base-cased"
     ["GPT2ForSequenceClassification"]="gpt2"
+    ["LlamaForSequenceClassification"]=$llama_model
+    ["LlamaInstructForSequenceClassification"]=$llama_instruct_model
     ["SentenceDebiasBertModel"]="bert-base-cased"
     ["SentenceDebiasBertLargeModel"]="bert-large-cased"
     ["SentenceDebiasAlbertModel"]="albert-base-v2"
@@ -241,6 +300,8 @@ declare -A model_to_model_name_or_path=(
     ["SentenceDebiasDebertaModel"]="microsoft/deberta-v3-large"
     ["SentenceDebiasDistilbertModel"]="distilbert-base-cased"
     ["SentenceDebiasGPT2Model"]="gpt2"
+    ["SentenceDebiasLlamaModel"]=$llama_model
+    ["SentenceDebiasLlamaInstructModel"]=$llama_instruct_model
     ["SentenceDebiasBertForMaskedLM"]="bert-base-cased"
     ["SentenceDebiasBertLargeForMaskedLM"]="bert-large-cased"
     ["SentenceDebiasAlbertForMaskedLM"]="albert-base-v2"
@@ -248,6 +309,8 @@ declare -A model_to_model_name_or_path=(
     ["SentenceDebiasDebertaForMaskedLM"]="microsoft/deberta-v3-large"
     ["SentenceDebiasDistilbertForMaskedLM"]="distilbert-base-cased"
     ["SentenceDebiasGPT2LMHeadModel"]="gpt2"
+    ["SentenceDebiasLlamaForCausalLM"]=$llama_model
+    ["SentenceDebiasLlamaInstructForCausalLM"]=$llama_instruct_model
     ["SentenceDebiasBertForSequenceClassification"]="bert-base-cased"
     ["SentenceDebiasBertLargeForSequenceClassification"]="bert-large-cased"
     ["SentenceDebiasAlbertForSequenceClassification"]="albert-base-v2"
@@ -255,6 +318,8 @@ declare -A model_to_model_name_or_path=(
     ["SentenceDebiasDebertaForSequenceClassification"]="microsoft/deberta-v3-large"
     ["SentenceDebiasDistilbertForSequenceClassification"]="distilbert-base-cased"
     ["SentenceDebiasGPT2ForSequenceClassification"]="gpt2"
+    ["SentenceDebiasLlamaForSequenceClassification"]=$llama_model
+    ["SentenceDebiasLlamaInstructForSequenceClassification"]=$llama_instruct_model
     ["INLPBertModel"]="bert-base-cased"
     ["INLPBertLargeModel"]="bert-large-cased"
     ["INLPAlbertModel"]="albert-base-v2"
@@ -262,6 +327,8 @@ declare -A model_to_model_name_or_path=(
     ["INLPDebertaModel"]="microsoft/deberta-v3-large"
     ["INLPDistilbertModel"]="distilbert-base-cased"
     ["INLPGPT2Model"]="gpt2"
+    ["INLPLlamaModel"]=$llama_model
+    ["INLPLlamaInstructModel"]=$llama_instruct_model
     ["INLPBertForMaskedLM"]="bert-base-cased"
     ["INLPBertLargeForMaskedLM"]="bert-large-cased"
     ["INLPAlbertForMaskedLM"]="albert-base-v2"
@@ -269,6 +336,8 @@ declare -A model_to_model_name_or_path=(
     ["INLPDebertaForMaskedLM"]="microsoft/deberta-v3-large"
     ["INLPDistilbertForMaskedLM"]="distilbert-base-cased"
     ["INLPGPT2LMHeadModel"]="gpt2"
+    ["INLPLlamaForCausalLM"]=$llama_model
+    ["INLPLlamaInstructForCausalLM"]=$llama_instruct_model
     ["INLPBertForSequenceClassification"]="bert-base-cased"
     ["INLPBertLargeForSequenceClassification"]="bert-large-cased"
     ["INLPAlbertForSequenceClassification"]="albert-base-v2"
@@ -276,6 +345,8 @@ declare -A model_to_model_name_or_path=(
     ["INLPDebertaForSequenceClassification"]="microsoft/deberta-v3-large"
     ["INLPDistilbertForSequenceClassification"]="distilbert-base-cased"
     ["INLPGPT2ForSequenceClassification"]="gpt2"
+    ["INLPLlamaForSequenceClassification"]=$llama_model
+    ["INLPLlamaInstructForSequenceClassification"]=$llama_instruct_model
     ["CDABertModel"]="bert-base-cased"
     ["CDABertLargeModel"]="bert-large-cased"
     ["CDAAlbertModel"]="albert-base-v2"
@@ -283,6 +354,8 @@ declare -A model_to_model_name_or_path=(
     ["CDADebertaModel"]="microsoft/deberta-v3-large"
     ["CDADistilbertModel"]="distilbert-base-cased"
     ["CDAGPT2Model"]="gpt2"
+    ["CDALlamaModel"]=$llama_model
+    ["CDALlamaInstructModel"]=$llama_instruct_model
     ["CDABertForMaskedLM"]="bert-base-cased"
     ["CDABertLargeForMaskedLM"]="bert-large-cased"
     ["CDAAlbertForMaskedLM"]="albert-base-v2"
@@ -290,6 +363,8 @@ declare -A model_to_model_name_or_path=(
     ["CDADebertaForMaskedLM"]="microsoft/deberta-v3-large"
     ["CDADistilbertForMaskedLM"]="distilbert-base-cased"
     ["CDAGPT2LMHeadModel"]="gpt2"
+    ["CDALlamaForCausalLM"]=$llama_model
+    ["CDALlamaInstructForCausalLM"]=$llama_instruct_model
     ["CDABertForSequenceClassification"]="bert-base-cased"
     ["CDABertLargeForSequenceClassification"]="bert-large-cased"
     ["CDAAlbertForSequenceClassification"]="albert-base-v2"
@@ -297,6 +372,8 @@ declare -A model_to_model_name_or_path=(
     ["CDADebertaForSequenceClassification"]="microsoft/deberta-v3-large"
     ["CDADistilbertForSequenceClassification"]="distilbert-base-cased"
     ["CDAGPT2ForSequenceClassification"]="gpt2"
+    ["CDALlamaForSequenceClassification"]=$llama_model
+    ["CDALlamaInstructForSequenceClassification"]=$llama_instruct_model
     ["DropoutBertModel"]="bert-base-cased"
     ["DropoutBertLargeModel"]="bert-large-cased"
     ["DropoutAlbertModel"]="albert-base-v2"
@@ -304,6 +381,8 @@ declare -A model_to_model_name_or_path=(
     ["DropoutDebertaModel"]="microsoft/deberta-v3-large"
     ["DropoutDistilbertModel"]="distilbert-base-cased"
     ["DropoutGPT2Model"]="gpt2"
+    ["DropoutLlamaModel"]=$llama_model
+    ["DropoutLlamaInstructModel"]=$llama_instruct_model
     ["DropoutBertForMaskedLM"]="bert-base-cased"
     ["DropoutBertLargeForMaskedLM"]="bert-large-cased"
     ["DropoutAlbertForMaskedLM"]="albert-base-v2"
@@ -311,6 +390,8 @@ declare -A model_to_model_name_or_path=(
     ["DropoutDebertaForMaskedLM"]="microsoft/deberta-v3-large"
     ["DropoutDistilbertForMaskedLM"]="distilbert-base-cased"
     ["DropoutGPT2LMHeadModel"]="gpt2"
+    ["DropoutLlamaForCausalLM"]=$llama_model
+    ["DropoutLlamaInstructForCausalLM"]=$llama_instruct_model
     ["DropoutBertForSequenceClassification"]="bert-base-cased"
     ["DropoutBertLargeForSequenceClassification"]="bert-large-cased"
     ["DropoutAlbertForSequenceClassification"]="albert-base-v2"
@@ -318,6 +399,8 @@ declare -A model_to_model_name_or_path=(
     ["DropoutDebertaForSequenceClassification"]="microsoft/deberta-v3-large"
     ["DropoutDistilbertForSequenceClassification"]="distilbert-base-cased"
     ["DropoutGPT2ForSequenceClassification"]="gpt2"
+    ["DropoutLlamaForSequenceClassification"]=$llama_model
+    ["DropoutLlamaInstructForSequenceClassification"]=$llama_instruct_model
     ["SelfDebiasBertForMaskedLM"]="bert-base-cased"
     ["SelfDebiasBertLargeForMaskedLM"]="bert-large-cased"
     ["SelfDebiasAlbertForMaskedLM"]="albert-base-v2"
@@ -325,6 +408,8 @@ declare -A model_to_model_name_or_path=(
     ["SelfDebiasDebertaForMaskedLM"]="microsoft/deberta-v3-large"
     ["SelfDebiasDistilbertForMaskedLM"]="distilbert-base-cased"
     ["SelfDebiasGPT2LMHeadModel"]="gpt2"
+    ["SelfDebiasLlamaForCausalLM"]=$llama_model
+    ["SelfDebiasLlamaInstructForCausalLM"]=$llama_instruct_model
 )
 
 # For SentenceDebias and INLP, it is useful to have the base model
@@ -338,6 +423,8 @@ declare -A debiased_model_to_base_model=(
     ["SentenceDebiasDebertaModel"]="DebertaModel"
     ["SentenceDebiasDistilbertModel"]="DistilbertModel"
     ["SentenceDebiasGPT2Model"]="GPT2Model"
+    ["SentenceDebiasLlamaModel"]="LlamaModel"
+    ["SentenceDebiasLlamaInstructModel"]="LlamaInstructModel"
     ["SentenceDebiasBertForMaskedLM"]="BertModel"
     ["SentenceDebiasBertLargeForMaskedLM"]="BertModel"
     ["SentenceDebiasAlbertForMaskedLM"]="AlbertModel"
@@ -345,6 +432,8 @@ declare -A debiased_model_to_base_model=(
     ["SentenceDebiasDebertaForMaskedLM"]="DebertaModel"
     ["SentenceDebiasDistilbertForMaskedLM"]="DistilbertModel"
     ["SentenceDebiasGPT2LMHeadModel"]="GPT2Model"
+    ["SentenceDebiasLlamaForCausalLM"]="LlamaModel"
+    ["SentenceDebiasLlamaInstructForCausalLM"]="LlamaInstructModel"
     ["SentenceDebiasBertForSequenceClassification"]="BertModel"
     ["SentenceDebiasBertLargeForSequenceClassification"]="BertModel"
     ["SentenceDebiasAlbertForSequenceClassification"]="AlbertModel"
@@ -352,6 +441,8 @@ declare -A debiased_model_to_base_model=(
     ["SentenceDebiasDebertaForSequenceClassification"]="DebertaModel"
     ["SentenceDebiasDistilbertForSequenceClassification"]="DistilbertModel"
     ["SentenceDebiasGPT2ForSequenceClassification"]="GPT2Model"
+    ["SentenceDebiasLlamaForSequenceClassification"]="LlamaModel"
+    ["SentenceDebiasLlamaInstructForSequenceClassification"]="LlamaInstructModel"
     ["INLPBertModel"]="BertModel"
     ["INLPBertLargeModel"]="BertModel"
     ["INLPAlbertModel"]="AlbertModel"
@@ -359,6 +450,8 @@ declare -A debiased_model_to_base_model=(
     ["INLPDebertaModel"]="DebertaModel"
     ["INLPDistilbertModel"]="DistilbertModel"
     ["INLPGPT2Model"]="GPT2Model"
+    ["INLPLlamaModel"]="LlamaModel"
+    ["INLPLlamaInstructModel"]="LlamaInstructModel"
     ["INLPBertForMaskedLM"]="BertModel"
     ["INLPBertLargeForMaskedLM"]="BertModel"
     ["INLPAlbertForMaskedLM"]="AlbertModel"
@@ -366,6 +459,8 @@ declare -A debiased_model_to_base_model=(
     ["INLPDebertaForMaskedLM"]="DebertaModel"
     ["INLPDistilbertForMaskedLM"]="DistilbertModel"
     ["INLPGPT2LMHeadModel"]="GPT2Model"
+    ["INLPLlamaForCausalLM"]="LlamaModel"
+    ["INLPLlamaInstructForCausalLM"]="LlamaInstructModel"
     ["INLPBertForSequenceClassification"]="BertModel"
     ["INLPBertLargeForSequenceClassification"]="BertModel"
     ["INLPAlbertForSequenceClassification"]="AlbertModel"
@@ -373,6 +468,8 @@ declare -A debiased_model_to_base_model=(
     ["INLPDebertaForSequenceClassification"]="DebertaModel"
     ["INLPDistilbertForSequenceClassification"]="DistilbertModel"
     ["INLPGPT2ForSequenceClassification"]="GPT2Model"
+    ["INLPLlamaForSequenceClassification"]="LlamaModel"
+    ["INLPLlamaInstructForSequenceClassification"]="LlamaInstructModel"
 )
 
 declare -A debiased_model_to_masked_lm_model=(
@@ -390,6 +487,10 @@ declare -A debiased_model_to_masked_lm_model=(
     ["CDADistilbertForMaskedLM"]="DistilbertForMaskedLM"
     ["CDAGPT2Model"]="GPT2LMHeadModel"
     ["CDAGPT2LMHeadModel"]="GPT2LMHeadModel"
+    ["CDALlamaModel"]="LlamaForCausalLM"
+    ["CDALlamaInstructModel"]="LlamaForCausalLM"
+    ["CDALlamaForCausalLM"]="LlamaForCausalLM"
+    ["CDALlamaInstructForCausalLM"]="LlamaForCausalLM"
     ["DropoutBertModel"]="BertForMaskedLM"
     ["DropoutBertLargeModel"]="BertLargeForMaskedLM"
     ["DropoutAlbertModel"]="AlbertForMaskedLM"
@@ -397,6 +498,8 @@ declare -A debiased_model_to_masked_lm_model=(
     ["DropoutDebertaModel"]="DebertaForMaskedLM"
     ["DropoutDistilbertModel"]="DistilbertForMaskedLM"
     ["DropoutGPT2Model"]="GPT2LMHeadModel"
+    ["DropoutLlamaModel"]="LlamaForCausalLM"
+    ["DropoutLlamaInstructModel"]="LlamaForCausalLM"
     ["DropoutBertForMaskedLM"]="BertForMaskedLM"
     ["DropoutBertLargeForMaskedLM"]="BertLargeForMaskedLM"
     ["DropoutAlbertForMaskedLM"]="AlbertForMaskedLM"
@@ -404,6 +507,8 @@ declare -A debiased_model_to_masked_lm_model=(
     ["DropoutDebertaForMaskedLM"]="DebertaForMaskedLM"
     ["DropoutDistilbertForMaskedLM"]="DistilbertForMaskedLM"
     ["DropoutGPT2LMHeadModel"]="GPT2LMHeadModel"
+    ["DropoutLlamaForCausalLM"]="LlamaForCausalLM"
+    ["DropoutLlamaInstructForCausalLM"]="LlamaForCausalLM"
 )
 
 # StereoSet specific variables.
@@ -465,4 +570,4 @@ seat_tests="sent-weat6 "\
 "sent-weat8b"
 
 
-declare -A model_to_n_classifiers=(["BertModel"]="80" ["BertLargeModel"]="80" ["AlbertModel"]="80" ["RobertaModel"]="80" ["DebertaModel"]="80" ["DistilbertModel"]="80" ["GPT2Model"]="10")
+declare -A model_to_n_classifiers=(["BertModel"]="80" ["BertLargeModel"]="80" ["AlbertModel"]="80" ["RobertaModel"]="80" ["DebertaModel"]="80" ["DistilbertModel"]="80" ["GPT2Model"]="10" ["LlamaModel"]="80" ["LlamaInstructModel"]="80")

@@ -1,12 +1,11 @@
 #!/bin/bash
 
 source "shell_jobs/_experiment_configuration.sh"
-#export CUDA_VISIBLE_DEVICES=0
+
+seeds=(0)
+echo "Using seeds ${seeds[@]}"
 
 models=("bert-base-cased" "bert-large-cased" "roberta-large" "distilbert-base-cased")
-
-bias_types=("gender")
-seeds=(0)
 for seed in ${seeds[@]}; do
   for model in ${models[@]}; do
         for bias_type in ${bias_types[@]}; do
@@ -59,4 +58,3 @@ for seed in ${seeds[@]}; do
         fi
     done
 done
-

@@ -49,9 +49,9 @@ class ConfidenceMetric:
 
         if self.print_margin and self.margin is not None:
             if is_significant:
-                s += rf' \pm \mathit{{{self.margin:{fmt}}}}'
+                s += rf'\tinymath{{\pm \mathit{{{self.margin:{fmt}}}}}}'
             else:
-                s += rf' \pm {self.margin:{fmt}}'
+                s += rf'\tinymath{{\pm {self.margin:{fmt}}}}'
 
 
         s = f'${s}$'
@@ -172,11 +172,9 @@ class BestAtLargestConfidenceMetric(ConfidenceMetric):
         if is_best_metric:
             change_fmt = rf'\boldsymbol{{{change_fmt}}}'
 
-        if score == baseline:
-            return ""
-        elif score < baseline:
+        if score < baseline:
             return r'\dab{$' + change_fmt + '$}'
-        else: # score > baseline:
+        else: # score >= baseline:
             return r'\uag{$' + change_fmt + '$}'
 
     def __lt__(self, other):
@@ -195,7 +193,8 @@ class BestAtLargestConfidenceMetric(ConfidenceMetric):
         return not self < other
 
 def fmt_eq(float_1, float_2, fmt):
-    return f'{float_1:{fmt}}' == f'{float_2:{fmt}}'
+    return float_1 == float_2
+    #return f'{float_1:{fmt}}' == f'{float_2:{fmt}}'
 
 class ModelResults:
     def __init__(self, base_model, scores, variant=None, base_model_pretty=None, fmt='.2f'):
@@ -226,7 +225,7 @@ class ModelResults:
 
         for metric in scores:
             if self.scores.get(metric) is None:
-                result += ' & -'
+                result += ' & --'
             else:
                 baseline_value = self.baseline[metric].score if (self.baseline is not None and metric in self.baseline) else None
                 #fmt = ".3f" if metric == SEAT else self.fmt
@@ -261,55 +260,58 @@ class ModelResults:
         return lower_score > upper_baseline or upper_score < lower_baseline
 
 class Variant:
-    def __init__(self, model, suffix, pretty, model_prefix='', model_suffix=''):
+    def __init__(self, model, suffix, pretty, model_prefix='', model_suffix='', changes_weights=False, is_post_processing=False):
         self.model = model
         self.suffix = suffix
         self.pretty = pretty
         self.model_prefix = model_prefix
         self.model_suffix = model_suffix
+        self.changes_weights = changes_weights
+        self.is_post_processing = is_post_processing
 
     def __str__(self):
         return self.pretty
 
 BASE = Variant('', '', 'Base Model')
-GRADIEND_BPI = Variant('', '-N', r'\gradiendbpi')
-GRADIEND_FPI = Variant('', '-F', r'\gradiendfpi')
-GRADIEND_MPI = Variant('', '-M', r'\gradiendmpi')
-CDA = Variant('CDA', '-gender_s-0', r'\cda')
-DROPOUT = Variant('Dropout', '-gender_s-0', r'\dropout')
-INLP = Variant('INLP', '', r'\inlp')
-RLACE = Variant('rlace_INLP', '', r'\rlace')
-LEACE = Variant('leace_INLP', '', r'\leace')
-SELF_DEBIAS = Variant('SelfDebias', '', r'\selfdebias')
-SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\sentencedebias')
+GRADIEND_BPI = Variant('', '-N', r'\gradiendbpi', changes_weights=True)
+GRADIEND_FPI = Variant('', '-F', r'\gradiendfpi', changes_weights=True)
+GRADIEND_MPI = Variant('', '-M', r'\gradiendmpi', changes_weights=True)
+CDA = Variant('CDA', '-gender_s-0', r'\cda', changes_weights=True)
+DROPOUT = Variant('Dropout', '-gender_s-0', r'\dropout', changes_weights=True)
+INLP = Variant('INLP', '', r'\inlp', is_post_processing=True)
+RLACE = Variant('rlace_INLP', '', r'\rlace', is_post_processing=True)
+LEACE = Variant('leace_INLP', '', r'\leace', is_post_processing=True)
+SELF_DEBIAS = Variant('SelfDebias', '', r'\selfdebias', is_post_processing=True)
+SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\sentencedebias', is_post_processing=True)
 
-GRADIEND_BPI_INLP = Variant('INLP', '-N', r'\gradiendbpi\ + \inlp')
-GRADIEND_BPI_RLACE = Variant('rlace_INLP', '-N', r'\gradiendbpi\ + \rlace')
-GRADIEND_BPI_LEACE = Variant('leace_INLP', '-N', r'\gradiendbpi\ + \leace')
-GRADIEND_BPI_SENTENCE_DEBIAS = Variant('SentenceDebias', '-N', r'\gradiendbpi\ + \sentencedebias \!\!')
-CDA_INLP = Variant('INLP', '', r'\cda\, + \inlp', model_prefix='cda_c-', model_suffix='_t-gender_s-0')
-CDA_SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\cda\, + \sentencedebias', model_prefix='cda_c-', model_suffix='_t-gender_s-0')
-DROPOUT_INLP = Variant('INLP', '', r'\dropout \, + \inlp', model_prefix='dropout_c-', model_suffix='_s-0')
-DROPOUT_SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\dropout \, + \sentencedebias', model_prefix='dropout_c-', model_suffix='_s-0')
+GRADIEND_BPI_INLP = Variant('INLP', '-N', r'\gradiendbpi\ + \inlp', changes_weights=True, is_post_processing=True)
+GRADIEND_BPI_RLACE = Variant('rlace_INLP', '-N', r'\gradiendbpi\ + \rlace', changes_weights=True, is_post_processing=True)
+GRADIEND_BPI_LEACE = Variant('leace_INLP', '-N', r'\gradiendbpi\ + \leace', changes_weights=True, is_post_processing=True)
+GRADIEND_BPI_SENTENCE_DEBIAS = Variant('SentenceDebias', '-N', r'\gradiendbpi\ + \sentencedebias \!\!', changes_weights=True, is_post_processing=True)
+CDA_INLP = Variant('INLP', '', r'\cda\, + \inlp', model_prefix='cda_c-', model_suffix='_t-gender_s-0', changes_weights=True, is_post_processing=True)
+CDA_SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\cda\, + \sentencedebias', model_prefix='cda_c-', model_suffix='_t-gender_s-0', changes_weights=True, is_post_processing=True)
+DROPOUT_INLP = Variant('INLP', '', r'\dropout \, + \inlp', model_prefix='dropout_c-', model_suffix='_s-0', changes_weights=True, is_post_processing=True)
+DROPOUT_SENTENCE_DEBIAS = Variant('SentenceDebias', '', r'\dropout \, + \sentencedebias', model_prefix='dropout_c-', model_suffix='_s-0', changes_weights=True, is_post_processing=True)
 
 VARIANTS = [
-    GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI, GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS, CDA_INLP, DROPOUT_INLP,
-    CDA, DROPOUT, INLP, RLACE, LEACE, SELF_DEBIAS, SENTENCE_DEBIAS
+    GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI,
+    CDA, DROPOUT, INLP, RLACE, LEACE, SELF_DEBIAS, SENTENCE_DEBIAS,
+    GRADIEND_BPI_INLP, #GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE,
+    GRADIEND_BPI_SENTENCE_DEBIAS,
+    CDA_INLP, CDA_SENTENCE_DEBIAS, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS,
 ]
 STRUCTURED_VARIANTS = [
     [BASE],
     [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI],
     [CDA, DROPOUT, INLP, RLACE, LEACE, SELF_DEBIAS, SENTENCE_DEBIAS],
-    [GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS],
-    [CDA_INLP, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS, CDA_SENTENCE_DEBIAS],
+    [GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS, CDA_INLP, DROPOUT_SENTENCE_DEBIAS, CDA_SENTENCE_DEBIAS, DROPOUT_INLP],
 ]
 
 STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS = [
     [BASE],
     [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI],
     [CDA, DROPOUT, INLP, RLACE, LEACE, SENTENCE_DEBIAS],
-    [GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS],
-    [CDA_INLP, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS, CDA_SENTENCE_DEBIAS],
+    [GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS, CDA_INLP, DROPOUT_SENTENCE_DEBIAS, CDA_SENTENCE_DEBIAS, DROPOUT_INLP],
 ]
 
 
@@ -357,7 +359,7 @@ SS = Metric('stereoset', '\\textbf{\\acrshort{ss}} (\\%) \\bestatfiftytiny', bes
 LMS = Metric('lms', '\\textbf{\\acrshort{lms}} (\\%) $\\uparrow$')
 GLUE = Metric('glue', '\\textbf{\\acrshort{glue}} (\\%) $\\uparrow$')
 GLUE_AVG = Metric('glue', '\\textbf{Average} $\\uparrow$')
-SEAT = Metric('seat', '\\textbf{\\acrshort{seat}} \\bestatzerotiny', best_at_zero)
+SEAT = Metric('seat', '\\textbf{\\acrshort{seat}} $\\downarrow$', best_at_zero)
 SEAT_AVG = Metric('seat', '\\textbf{Absolute Average} \\bestatzerotiny', best_at_zero)
 CROWS = Metric('crows', '\\textbf{CrowS} (\\%) \\bestatfiftytiny', best_at_fifty)
 
@@ -373,19 +375,29 @@ GLUE_SST2 = Metric('glue_sst2', '\\textbf{SST-2}')
 GLUE_STSB = Metric('glue_stsb', '\\textbf{STS-B}')
 GLUE_WNLI = Metric('glue_wnli', '\\textbf{WNLI}')
 
-SEAT_6 = Metric('seat-6', '\\textbf{SEAT-6}', best_at_zero)
-SEAT_6B = Metric('seat-6b', '\\textbf{SEAT-6b}', best_at_zero)
-SEAT_7 = Metric('seat-7', '\\textbf{SEAT-7}', best_at_zero)
-SEAT_7b = Metric('seat-7b', '\\textbf{SEAT-7b}', best_at_zero)
-SEAT_8 = Metric('seat-8', '\\textbf{SEAT-8}', best_at_zero)
-SEAT_8b = Metric('seat-8b', '\\textbf{SEAT-8b}', best_at_zero)
+SEAT_6 = Metric('seat-6', '\\textbf{SEAT-6} \\bestatzerotiny', best_at_zero)
+SEAT_6B = Metric('seat-6b', '\\textbf{SEAT-6b} \\bestatzerotiny', best_at_zero)
+SEAT_7 = Metric('seat-7', '\\textbf{SEAT-7} \\bestatzerotiny', best_at_zero)
+SEAT_7b = Metric('seat-7b', '\\textbf{SEAT-7b} \\bestatzerotiny', best_at_zero)
+SEAT_8 = Metric('seat-8', '\\textbf{SEAT-8} \\bestatzerotiny', best_at_zero)
+SEAT_8b = Metric('seat-8b', '\\textbf{SEAT-8b} \\bestatzerotiny', best_at_zero)
+
+BERT = 'bert-base-cased'
+BERT_LARGE = 'bert-large-cased'
+DISTILBERT = 'distilbert-base-cased'
+ROBERTA = 'roberta-large'
+GPT2 = 'gpt2'
+LLAMA = 'Llama-3.2-3B'
+LLAMA_INSTRUCT = 'Llama-3.2-3B-Instruct'
 
 models = {
-    'bert-base-cased': 'Bert',
-    'bert-large-cased': 'BertLarge',
-    'distilbert-base-cased': 'Distilbert',
-    'roberta-large': 'Roberta',
-    'gpt2': 'GPT2',
+    BERT: 'Bert',
+    BERT_LARGE: 'BertLarge',
+    DISTILBERT: 'Distilbert',
+    ROBERTA: 'Roberta',
+    GPT2: 'GPT2',
+    LLAMA: 'Llama',
+    LLAMA_INSTRUCT: 'LlamaInstruct',
 }
 
 model_type_pretty = {
@@ -394,18 +406,24 @@ model_type_pretty = {
     'Distilbert': r'\distilbert',
     'Roberta': r'\roberta',
     'GPT2': r'\gpttwo',
+    'Llama': r'\llama',
+    'LlamaInstruct': r'\llamai',
 }
+
 
 def get_experiments(base_model, variant, metrics=None):
     model_type = models[base_model]
     base_model_pretty = model_type_pretty[model_type]
     variant_suffix = (variant.suffix if variant in [BASE, GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI, GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS, ] else "") + ("_t-gender" if variant in [CDA, SELF_DEBIAS, SENTENCE_DEBIAS, INLP, RLACE, LEACE, GRADIEND_BPI_INLP, GRADIEND_BPI_RLACE, GRADIEND_BPI_LEACE, GRADIEND_BPI_SENTENCE_DEBIAS, CDA_INLP, CDA_SENTENCE_DEBIAS, DROPOUT_INLP, DROPOUT_SENTENCE_DEBIAS] else "")
 
-    model_head = 'LMHeadModel' if model_type in {'GPT2'} else 'ForMaskedLM'
+    model_head = 'LMHeadModel' if model_type in {'GPT2'} else ('ForCausalLM' if 'llama' in model_type.lower() else 'ForMaskedLM')
+
+    base_model_id = base_model.split('/')[-1]
+    base_model_full = base_model.replace('/', '-')
 
     model_type_modified = model_type.removesuffix("Large") if variant in [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI] else model_type
     crows = f'results/crows/crows_m-{variant.model}{model_type_modified}{model_head}_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant.suffix.removesuffix("-gender_s-0")}_t-gender.json'
-    seat = f'results/seat/seat_m-{variant.model}{model_type.removesuffix("Large") if variant in [BASE] else model_type_modified}Model_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant_suffix}.json'
+    seat = f'results/seat/seat_m-{variant.model}{model_type.removesuffix("Large") if variant in [BASE] else model_type_modified}Model_c-{variant.model_prefix}{base_model_full}{variant.model_suffix}{variant_suffix}.json'
     stereoset_data = 'results/stereoset.json'
     stereoset = f'stereoset_m-{variant.model}{model_type_modified}{model_head}_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant_suffix}{"_s-0" if variant in [DROPOUT, CDA] else ""}'
     glue = f'results/checkpoints/glue_m-{variant.model}{model_type.removesuffix("Large")}ForSequenceClassification_c-{variant.model_prefix}{base_model}{variant.model_suffix}{variant_suffix}/glue_results_1000_0.95.json'
@@ -567,7 +585,19 @@ def print_table(models=list(models),
 
     return results
 
-def print_main_table():
+# todo maybe drop even SELF_DEBIAS
+def print_reduced_main_table():
+    print_table(
+        variants=[
+            [BASE],
+            [GRADIEND_BPI, GRADIEND_FPI, GRADIEND_MPI],
+            [INLP, RLACE, LEACE, SELF_DEBIAS, SENTENCE_DEBIAS],
+            [GRADIEND_BPI_INLP, GRADIEND_BPI_SENTENCE_DEBIAS]
+        ],
+        models=[GPT2, LLAMA, LLAMA_INSTRUCT],
+    )
+
+def print_full_main_table():
     print_table() # fmt='.1f'
 
 def print_full_glue_table():
@@ -636,6 +666,6 @@ def print_full_seat_table():
     )
 
 if __name__ == '__main__':
-    print_main_table()
+    print_full_main_table()
     #print_full_glue_table()
     #print_full_seat_table()

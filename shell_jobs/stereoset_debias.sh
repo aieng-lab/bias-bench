@@ -1,26 +1,22 @@
 #!/bin/bash
 
 source "shell_jobs/_experiment_configuration.sh"
-#export CUDA_VISIBLE_DEVICES=0
-
-#projection_matrix_prefixes=("leace_")
-
 
 
 for model in ${inlp_causal_lm_models[@]}; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=$(basename "${model_name}")
 
     for projection_prefix in "${projection_matrix_prefixes[@]}"; do
       echo "Projection prefix: ${projection_prefix}"
         for bias_type in ${bias_types[@]}; do
-            experiment_id="stereoset_m-${projection_prefix}${model}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}"
+            experiment_id="stereoset_m-${projection_prefix}${model}_c-${model_id}_t-${bias_type}"
             if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
                 echo ${experiment_id}
                 cmd=(python experiments/stereoset_debias.py \
                     --model ${model} \
-                    --model_name_or_path ${model_to_model_name_or_path[${model}]} \
-                    --projection_matrix "${persistent_dir}/results/projection_matrix/${projection_prefix}projection_m-${debiased_model_to_base_model[${model}]}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}_s-0.pt" \
+                    --model_name_or_path ${model_name} \
+                    --projection_matrix "${persistent_dir}/results/projection_matrix/${projection_prefix}projection_m-${debiased_model_to_base_model[${model}]}_c-${model_id}_t-${bias_type}_s-0.pt" \
                     --bias_type ${bias_type} \
                     --persistent_dir "${persistent_dir}")
                 if [[ -n "$projection_prefix" ]]; then
@@ -35,16 +31,16 @@ for model in ${inlp_causal_lm_models[@]}; do
         base_model=${debiased_model_to_base_model[${model}]}
         debiased_models=(${model_to_debiased_models[$base_model]})
         for debiased_model in ${debiased_models[@]}; do
-            model_id=$(basename "$debiased_model")
+            debiased_model_id=$(basename "$debiased_model")
             if [[ $model_id != *"-M" ]] && [[ $model_id != *"-F" ]]; then
                 for bias_type in ${bias_types[@]}; do
-                    experiment_id="stereoset_m-${projection_prefix}${model}_c-${model_id}_t-${bias_type}"
+                    experiment_id="stereoset_m-${projection_prefix}${model}_c-${debiased_model_id}_t-${bias_type}"
                     if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
                          echo ${experiment_id}
                          cmd=(python experiments/stereoset_debias.py \
                              --model ${model} \
                              --model_name_or_path ${debiased_model} \
-                             --projection_matrix "${persistent_dir}/results/projection_matrix/${projection_prefix}projection_m-${base_model}_c-${model_id}_t-${bias_type}_s-0.pt" \
+                             --projection_matrix "${persistent_dir}/results/projection_matrix/${projection_prefix}projection_m-${base_model}_c-${debiased_model_id}_t-${bias_type}_s-0.pt" \
                              --bias_type ${bias_type} \
                              --persistent_dir "${persistent_dir}")
                          if [[ -n "$projection_prefix" ]]; then
@@ -60,9 +56,10 @@ for model in ${inlp_causal_lm_models[@]}; do
     done
 done
 
+
 for model in "${inlp_masked_lm_models[@]}"; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=$(basename "${model_name}")
 
     for projection_prefix in "${projection_matrix_prefixes[@]}"; do
         for bias_type in ${bias_types[@]}; do
@@ -71,7 +68,7 @@ for model in "${inlp_masked_lm_models[@]}"; do
                  echo ${experiment_id}
                  cmd=(python experiments/stereoset_debias.py \
                      --model ${model} \
-                     --model_name_or_path ${model_to_model_name_or_path[${model}]} \
+                     --model_name_or_path ${model_name} \
                      --projection_matrix "${persistent_dir}/results/projection_matrix/${projection_prefix}projection_m-${debiased_model_to_base_model[${model}]}_c-${model_id}_t-${bias_type}_s-0.pt" \
                      --bias_type ${bias_type} \
                       --persistent_dir "${persistent_dir}")
@@ -114,13 +111,9 @@ done
 
 
 
-
-
-#exit
-
 for model in ${sentence_debias_causal_lm_models[@]}; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=$(basename "${model_name}")
 
     for bias_type in ${bias_types[@]}; do
         experiment_id="stereoset_m-${model}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}"
@@ -129,7 +122,7 @@ for model in ${sentence_debias_causal_lm_models[@]}; do
             python experiments/stereoset_debias.py \
                 --model ${model} \
                 --model_name_or_path ${model_to_model_name_or_path[${model}]} \
-                --bias_direction "${persistent_dir}/results/subspace/subspace_m-${debiased_model_to_base_model[${model}]}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}.pt" \
+                --bias_direction "${persistent_dir}/results/subspace/subspace_m-${debiased_model_to_base_model[${model}]}_c-${model_id}_t-${bias_type}.pt" \
                 --bias_type ${bias_type} \
                 --persistent_dir "${persistent_dir}"
         else
@@ -163,15 +156,17 @@ done
 
 
 for model in ${cda_causal_lm_models[@]}; do
+    model_name=${model_to_model_name_or_path[${model}]}
+    model_id=(basename "${model_name}")
     for seed in 0; do
         for bias_type in ${bias_types[@]}; do
-            experiment_id="stereoset_m-${model}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}_s-${seed}"
+            experiment_id="stereoset_m-${model}_c-${model_id}_t-${bias_type}_s-${seed}"
             if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
                 echo ${experiment_id}
                 python experiments/stereoset_debias.py \
                     --model ${model} \
-                    --model_name_or_path ${model_to_model_name_or_path[${model}]} \
-                    --load_path "${persistent_dir}/results/checkpoints/cda_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}_s-${seed}" \
+                    --model_name_or_path ${model_name} \
+                    --load_path "${persistent_dir}/results/checkpoints/cda_c-${model_id}_t-${bias_type}_s-${seed}" \
                     --bias_type ${bias_type} \
                     --seed ${seed} \
                     --persistent_dir "${persistent_dir}"
@@ -184,14 +179,16 @@ done
 
 
 for model in ${dropout_causal_lm_models[@]}; do
+    model_name=${model_to_model_name_or_path[${model}]}
+    model_id=$(basename "${model_name}")
     for seed in 0; do
-        experiment_id="stereoset_m-${model}_c-${model_to_model_name_or_path[${model}]}_s-${seed}"
+        experiment_id="stereoset_m-${model}_c-${model_id}_s-${seed}"
         if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
             echo ${experiment_id}
             python experiments/stereoset_debias.py \
               --model ${model} \
               --model_name_or_path ${model_to_model_name_or_path[${model}]} \
-              --load_path "${persistent_dir}/results/checkpoints/dropout_c-${model_to_model_name_or_path[${model}]}_s-${seed}" \
+              --load_path "${persistent_dir}/results/checkpoints/dropout_c-${model_id}_s-${seed}" \
               --seed ${seed} \
               --persistent_dir "${persistent_dir}"
         else
@@ -202,13 +199,15 @@ done
 
 
 for model in ${self_debias_causal_lm_models[@]}; do
+    model_name=${model_to_model_name_or_path[${model}]}
+    model_id=$(basename "${model_name}")
     for bias_type in ${bias_types[@]}; do
-        experiment_id="stereoset_m-${model}_c-${model_to_model_name_or_path[${model}]}_t-${bias_type}"
+        experiment_id="stereoset_m-${model}_c-${model_id}_t-${bias_type}"
         if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
             echo ${experiment_id}
             python experiments/stereoset_debias.py \
                 --model ${model} \
-                --model_name_or_path ${model_to_model_name_or_path[${model}]} \
+                --model_name_or_path ${model_name} \
                 --bias_type ${bias_type} \
                 --persistent_dir "${persistent_dir}"
         else
@@ -220,7 +219,7 @@ done
 
 for model in ${cda_masked_lm_models[@]}; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=(basename "${model_name}")
     for seed in ${seeds[@]}; do
         for bias_type in ${bias_types[@]}; do
             experiment_id="stereoset_m-${model}_c-${model_id}_t-${bias_type}_s-${seed}"
@@ -228,7 +227,7 @@ for model in ${cda_masked_lm_models[@]}; do
                 echo ${experiment_id}
                 python experiments/stereoset_debias.py \
                     --model ${model} \
-                    --model_name_or_path ${model_to_model_name_or_path[${model}]} \
+                    --model_name_or_path ${model_name} \
                     --load_path "${persistent_dir}/results/checkpoints/cda_c-${model_id}_t-${bias_type}_s-${seed}" \
                     --bias_type ${bias_type} \
                     --seed ${seed} \
@@ -243,14 +242,14 @@ done
 
 for model in ${sentence_debias_masked_lm_models[@]}; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=$(basename "${model_name}")
     for bias_type in ${bias_types[@]}; do
         experiment_id="stereoset_m-${model}_c-${model_id}_t-${bias_type}"
         if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
             echo ${experiment_id}
             python experiments/stereoset_debias.py \
                 --model ${model} \
-                --model_name_or_path ${model_to_model_name_or_path[${model}]} \
+                --model_name_or_path ${model_name} \
                 --bias_direction "${persistent_dir}/results/subspace/subspace_m-${debiased_model_to_base_model[${model}]}_c-${model_id}_t-${bias_type}.pt" \
                 --bias_type ${bias_type} \
                 --persistent_dir "${persistent_dir}"
@@ -285,7 +284,7 @@ done
 
 for model in ${self_debias_masked_lm_models[@]}; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=$(basename "${model_name}")
     for bias_type in ${bias_types[@]}; do
         experiment_id="stereoset_m-${model}_c-${model_id}_t-${bias_type}"
         if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
@@ -304,14 +303,14 @@ done
 
 for model in ${dropout_masked_lm_models[@]}; do
     model_name=${model_to_model_name_or_path[${model}]}
-    model_id=$(echo "$model_name" | tr '/' '-')
+    model_id=$(basename "${model_name}")
     for seed in ${seeds[@]}; do
         experiment_id="stereoset_m-${model}_c-${model_id}_s-${seed}"
         if [ ! -f "${persistent_dir}/results/stereoset/${experiment_id}.json" ]; then
             echo ${experiment_id}
             python experiments/stereoset_debias.py \
                 --model ${model} \
-                --model_name_or_path ${model_to_model_name_or_path[${model}]} \
+                --model_name_or_path ${model_name} \
                 --load_path "${persistent_dir}/results/checkpoints/dropout_c-${model_id}_s-${seed}" \
                 --seed ${seed} \
                 --persistent_dir "${persistent_dir}"

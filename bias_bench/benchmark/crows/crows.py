@@ -355,11 +355,20 @@ class CrowSPairsRunner:
         return round((stereo_score + antistereo_score) / N * 100, 2)
 
     def _joint_log_probability(self, tokens):
-        start_token = (
-            torch.tensor(self._tokenizer.encode("<|endoftext|>"))
-            .to(device)
-            .unsqueeze(0)
-        )
+        is_llama = 'llama' in self._model.config.model_type.lower()
+        if hasattr(self._tokenizer, 'tokenizer'):
+            start_token = (
+                torch.tensor(self._tokenizer.tokenizer.encode("<|endoftext|>"))
+                .to(device)
+                .unsqueeze(0)
+            )
+            is_llama = True
+        else:
+            start_token = (
+                torch.tensor(self._tokenizer.encode("<|endoftext|>"))
+                .to(device)
+                .unsqueeze(0)
+            )
 
         if not self._is_self_debias:
             initial_token_probabilities = self._model(start_token)

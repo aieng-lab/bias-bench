@@ -7,16 +7,9 @@ def _is_generative(model):
         "CDAGPT2LMHeadModel",
         "DropoutGPT2LMHeadModel",
         "SelfDebiasGPT2LMHeadModel",
-    ]
+    ] or 'llama' in model.lower()
 
 
 def _is_self_debias(model):
     # Checks if we are running a Self-Debias model.
-    return model in [
-        "SelfDebiasGPT2LMHeadModel",
-        "SelfDebiasBertForMaskedLM",
-        "SelfDebiasBertLargeForMaskedLM",
-        "SelfDebiasAlbertForMaskedLM",
-        "SelfDebiasRobertaForMaskedLM",
-        "SelfDebiasDistilbertForMaskedLM",
-    ]
+    return 'SelfDebias' in model or 'self-debias' in model.lower() or 'self_debias' in model.lower()

@@ -43,6 +43,9 @@ def _encode(model, batch_encoding, device):
     elif "gpt" in model.config.model_type:
         H = model(input_ids=input_ids)["last_hidden_state"][:, -1,
             :]  # GPT models return last hidden state, take last token
+    elif "llama" in model.config.model_type:
+        H = model(input_ids=input_ids,
+                  attention_mask=attention_mask)["last_hidden_state"][:, -1, :]
     else:
         raise ValueError(f"Unsupported model type: {model.config.model_type}")
 

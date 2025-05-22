@@ -196,13 +196,19 @@ class StereoSetRunner:
         # Load the dataset.
         stereoset = dataloader.StereoSet(self._input_file)
 
+        is_llama = "llama" in self._model_name_or_path.lower()
+
         # Assume we are using GPT-2.
-        unconditional_start_token = "<|endoftext|>"
-        start_token = (
-            torch.tensor(self._tokenizer.encode(unconditional_start_token))
-            .to(device)
-            .unsqueeze(0)
-        )
+        if is_llama:
+            unconditional_start_token = self._tokenizer.eos_token
+            start_token = torch.tensor(self._tokenizer.encode(unconditional_start_token, add_special_tokens=False)).to(device).unsqueeze(0)
+        else:
+            unconditional_start_token = "<|endoftext|>"
+            start_token = (
+                torch.tensor(self._tokenizer.encode(unconditional_start_token))
+                .to(device)
+                .unsqueeze(0)
+            )
 
         # Get the unconditional initial token prompts if not using self-debiasing.
         if not self._is_self_debias:
@@ -226,7 +232,10 @@ class StereoSetRunner:
                 probabilities = {}
 
                 # Encode the sentence
-                tokens = self._tokenizer.encode(sentence.sentence)
+                if is_llama:
+                    tokens = self._tokenizer.encode(sentence.sentence, add_special_tokens=False)
+                else:
+                    tokens = self._tokenizer.encode(sentence.sentence)
                 tokens_tensor = torch.tensor(tokens).to(device).unsqueeze(0)
 
                 if self._is_self_debias:

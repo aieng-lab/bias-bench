@@ -74,6 +74,8 @@ if __name__ == "__main__":
     print(f" - model_name_or_path: {args.model_name_or_path}")
 
     # Load model and tokenizer.
+    print("Loading model and tokenizer...")
+    print(args.model)
     model = getattr(models, args.model)(args.model_name_or_path)
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()

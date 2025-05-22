@@ -76,19 +76,19 @@ if __name__ == "__main__":
     print(f" - bias_type: {args.bias_type}")
     print(f" - batch_size: {args.batch_size}")
 
-    # Get the data to compute the SentenceDebias bias subspace.
-    data = load_sentence_debias_data(
-        persistent_dir=args.persistent_dir, bias_type=args.bias_type
-    )
-
     # Load model and tokenizer.
     model = getattr(models, args.model)(args.model_name_or_path)
     model.eval()
     tokenizer = load_tokenizer(args.model_name_or_path)
 
+    # Get the data to compute the SentenceDebias bias subspace.
+    data = load_sentence_debias_data(
+        persistent_dir=args.persistent_dir, bias_type=args.bias_type
+    )
+
     # Specify a padding token for batched SentenceDebias subspace computation for
     # GPT2.
-    if args.model == "GPT2Model":
+    if any(x in args.model.lower() for x in {'gpt2', 'llama'}):
         tokenizer.pad_token = tokenizer.eos_token
 
     if args.bias_type == "gender":

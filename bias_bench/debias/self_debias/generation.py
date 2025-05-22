@@ -390,3 +390,130 @@ class SelfDebiasingGPT2LMHeadModel(GPT2LMHeadModel, GenerationMixin):
                 )
         else:
             return input_ids
+
+
+
+from transformers import LlamaForCausalLM, LogitsProcessorList
+from transformers.generation.utils import SampleDecoderOnlyOutput
+import torch
+import torch.nn.functional as F
+from typing import Optional, Union
+
+class SelfDebiasingLlamaForCausalLM(LlamaForCausalLM):
+    """
+    LLaMA model with optional self-debiasing using a custom logits processor.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logits_processor = None  # type: Optional[SelfDebiasingLogitsProcessor]
+
+    def init_logits_processor(self, *args, **kwargs):
+        self.logits_processor = SelfDebiasingLogitsProcessor(*args, **kwargs)
+
+    def _get_logits_processor(self, *args, **kwargs) -> LogitsProcessorList:
+        logits_processor = super()._get_logits_processor(*args, **kwargs)
+        if self.logits_processor is not None:
+            logits_processor.append(self.logits_processor)
+        return logits_processor
+
+    def sample(
+        self,
+        input_ids: torch.LongTensor,
+        logits_processor: Optional[LogitsProcessorList] = None,
+        logits_warper: Optional[LogitsProcessorList] = None,
+        max_length: Optional[int] = None,
+        pad_token_id: Optional[int] = None,
+        eos_token_id: Optional[int] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        output_scores: Optional[bool] = None,
+        return_dict_in_generate: Optional[bool] = None,
+        **model_kwargs,
+    ) -> Union[SampleDecoderOnlyOutput, torch.LongTensor]:
+
+        logits_processor = logits_processor or LogitsProcessorList()
+        logits_warper = logits_warper or LogitsProcessorList()
+        max_length = max_length or self.config.max_length
+        pad_token_id = pad_token_id if pad_token_id is not None else self.config.pad_token_id
+        eos_token_id = eos_token_id if eos_token_id is not None else self.config.eos_token_id
+        output_scores = output_scores if output_scores is not None else self.config.output_scores
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        return_dict_in_generate = return_dict_in_generate if return_dict_in_generate is not None else self.config.return_dict_in_generate
+
+        scores = () if (return_dict_in_generate and output_scores) else None
+        decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
+        decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
+
+        (
+            sequence_lengths,
+            unfinished_sequences,
+            cur_len,
+        ) = self._init_sequence_length_for_generation(input_ids, max_length)
+
+        while cur_len < max_length:
+            model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+
+            outputs = self(
+                **model_inputs,
+                return_dict=True,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+            )
+
+            next_token_logits = outputs.logits[:, -1, :]
+            next_token_scores = logits_processor(input_ids, next_token_logits)
+            next_token_scores = logits_warper(input_ids, next_token_scores)
+
+            if return_dict_in_generate:
+                if output_scores:
+                    scores += (next_token_scores,)
+                if output_attentions:
+                    decoder_attentions += (outputs.attentions,)
+                if output_hidden_states:
+                    decoder_hidden_states += (outputs.hidden_states,)
+
+            probs = F.softmax(next_token_scores, dim=-1)
+            next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
+
+            # BEGIN MODIFICATIONS
+            if self.logits_processor is not None:
+                batch_size = next_tokens.shape[0] // (1 + self.logits_processor.num_debiasing_prefixes)
+                regular_sentence_indices = range(batch_size)
+                for regular_sentence_idx in regular_sentence_indices:
+                    debiasing_sentence_indices = self.logits_processor._get_bias_indices(
+                        regular_sentence_idx, batch_size
+                    )
+                    for debiasing_sentence_idx in debiasing_sentence_indices:
+                        next_tokens[debiasing_sentence_idx] = next_tokens[regular_sentence_idx]
+            # END MODIFICATIONS
+
+            if eos_token_id is not None:
+                assert pad_token_id is not None, "If eos_token_id is set, pad_token_id must also be set."
+                next_tokens = next_tokens * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
+
+            input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
+            cur_len += 1
+
+            if eos_token_id is not None:
+                sequence_lengths, unfinished_sequences = self._update_seq_length_for_generation(
+                    sequence_lengths, unfinished_sequences, cur_len, next_tokens == eos_token_id
+                )
+
+            if unfinished_sequences.max() == 0:
+                break
+
+            model_kwargs = self._update_model_kwargs_for_generation(
+                outputs, model_kwargs, is_encoder_decoder=False
+            )
+
+        if return_dict_in_generate:
+            return SampleDecoderOnlyOutput(
+                sequences=input_ids,
+                scores=scores,
+                attentions=decoder_attentions,
+                hidden_states=decoder_hidden_states,
+            )
+        else:
+            return input_ids

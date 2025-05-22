@@ -1,7 +1,7 @@
 #!/bin/bash
 
 source "shell_jobs/_experiment_configuration.sh"
-export CUDA_VISIBLE_DEVICES=1
+#export CUDA_VISIBLE_DEVICES=1
 
 base_models=("bert-base-cased" "bert-large-cased")
 model="BertModel"
@@ -65,6 +65,45 @@ model="GPT2Model"
 for base_model in ${base_models[@]}; do
     for bias_type in ${bias_types[@]}; do
         experiment_id="subspace_m-${model}_c-${base_model}_t-${bias_type}"
+        if [ ! -f "${persistent_dir}/results/subspace/${experiment_id}.pt" ]; then
+            echo ${experiment_id}
+            python experiments/sentence_debias_subspace.py \
+                --model ${model} \
+                --model_name_or_path ${base_model} \
+                --bias_type ${bias_type} \
+                --persistent_dir "${persistent_dir}"
+        else
+            echo "${experiment_id} already computed"
+        fi
+    done
+done
+
+
+base_models=(${llama_instruct_model})
+model="LlamaInstructModel"
+for base_model in ${base_models[@]}; do
+    for bias_type in ${bias_types[@]}; do
+        base_model_id=$(basename "$base_model")
+        experiment_id="subspace_m-${model}_c-${base_model_id}_t-${bias_type}"
+        if [ ! -f "${persistent_dir}/results/subspace/${experiment_id}.pt" ]; then
+            echo ${experiment_id}
+            python experiments/sentence_debias_subspace.py \
+                --model ${model} \
+                --model_name_or_path ${base_model} \
+                --bias_type ${bias_type} \
+                --persistent_dir "${persistent_dir}"
+        else
+            echo "${experiment_id} already computed"
+        fi
+    done
+done
+
+base_models=(${llama_model})
+model="LlamaModel"
+for base_model in ${base_models[@]}; do
+    for bias_type in ${bias_types[@]}; do
+        base_model_id=$(basename "$base_model")
+        experiment_id="subspace_m-${model}_c-${base_model_id}_t-${bias_type}"
         if [ ! -f "${persistent_dir}/results/subspace/${experiment_id}.pt" ]; then
             echo ${experiment_id}
             python experiments/sentence_debias_subspace.py \

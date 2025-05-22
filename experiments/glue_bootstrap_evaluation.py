@@ -112,8 +112,9 @@ def bootstrap_glue_scores(df: pd.DataFrame, n_samples: int = 1000, seed: int = 4
 
     return result
 
+all_glue_tasks = ('wnli', 'stsb', 'sst2', 'rte', 'qqp', 'qnli', 'mrpc', 'cola', 'mnli', 'mnli-mm')
 
-def read_glue_results(base_dir, seeds=(0, 1, 2), tasks=('wnli', 'stsb', 'sst2', 'rte', 'qqp', 'qnli', 'mrpc', 'cola', 'mnli', 'mnli-mm'), use_corrected=False):
+def read_glue_results(base_dir, seeds=(0, 1, 2), tasks=all_glue_tasks):
     print('Read GLUE results for ', base_dir)
 
     df_data = []
@@ -137,14 +138,6 @@ def read_glue_results(base_dir, seeds=(0, 1, 2), tasks=('wnli', 'stsb', 'sst2', 
             else:
                 file = f'{base_dir}/{seed}/{task}/eval_results_{task}.txt'
 
-
-            corrected_file = file.removesuffix(f'/eval_results_{task}.txt') + f'_1{seed}/eval_results_{task}.txt'
-            use_corrected_ = False
-            if use_corrected and os.path.isfile(corrected_file):
-                file = corrected_file
-                print('Use corrected file:', file)
-                use_corrected_ = True
-
             df = pd.read_csv(file, sep='\t')
             df['task'] = task
             df['seed'] = seed
@@ -155,11 +148,6 @@ def read_glue_results(base_dir, seeds=(0, 1, 2), tasks=('wnli', 'stsb', 'sst2', 
             labels = validation_data['label']
             df['label'] = labels
             df['idx'] = df.index
-            df['corrected'] = use_corrected_
-
-            #metric = load_metric("glue", task, trust_remote_code=True)
-            #score = metric.compute(predictions=predicted, references=labels)['accuracy']
-            #print(score)
 
             df_data.append(df)
 
@@ -215,7 +203,7 @@ def test_needed_samples(input):
         else:
             print(f"Skipping sample size {size} as it exceeds the total number of samples available ({len(bootstrap_results)}).")
 
-def glue_bootstrap(input, n_samples=1000, confidence_level=0.95, suffix=''):
+def glue_bootstrap(input, n_samples=1000, confidence_level=0.95, suffix='', tasks=all_glue_tasks):
     output = f"{input}/glue_results_{n_samples}_{confidence_level}{suffix}.json"
 
     bootstrap_results = None
@@ -228,7 +216,7 @@ def glue_bootstrap(input, n_samples=1000, confidence_level=0.95, suffix=''):
         if os.path.exists(df_output):
             df = pd.read_csv(df_output)
         else:
-            df = read_glue_results(input, use_corrected=bool(suffix))
+            df = read_glue_results(input, tasks=tasks)
             df.to_csv(df_output, index=False)
 
         # Run bootstrapping
@@ -263,8 +251,12 @@ def glue_bootstrap(input, n_samples=1000, confidence_level=0.95, suffix=''):
 
     return bootstrap_results
 
-def glue_bootstrap_scores(input, n_samples=1000, confidence_level=0.95):
-    bootstrap_results = glue_bootstrap(input, n_samples, confidence_level)
+def glue_bootstrap_scores(input, n_samples=1000, confidence_level=0.95, tasks=all_glue_tasks):
+    bootstrap_results = glue_bootstrap(input, n_samples, confidence_level, tasks=tasks)
+
+    if isinstance(bootstrap_results, dict):
+        bootstrap_results = [x['mean'] for x in bootstrap_results['bootstrap']]
+
     # Step 1: Compute the mean
     mean_score = np.mean(bootstrap_results)
 
@@ -280,7 +272,12 @@ def calculate_bootstrap_for_all_models(base_path, suffix=''):
     errors = []
     for model in models:
         try:
-            glue_bootstrap(f'{base_path}/{model}', suffix=suffix)
+            if 'llama' in model:
+                tasks = [t for t in all_glue_tasks if t != 'stsb']
+            else:
+                tasks = all_glue_tasks
+
+            glue_bootstrap(f'{base_path}/{model}', suffix=suffix, tasks=tasks)
         except Exception as e:
             print(f"Error for model {model}: {e}")
             errors.append(model)
