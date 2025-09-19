@@ -4,7 +4,6 @@ source "shell_jobs/_experiment_configuration.sh"
 
 seeds=(0) # only seed 0 is used for evaluation
 
-
 models=("gpt2")
 for seed in ${seeds[@]}; do
     for model in ${models[@]}; do

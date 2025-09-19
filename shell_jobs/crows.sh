@@ -35,7 +35,7 @@ for model in ${causal_lm_models[@]}; do
         base_model="${model%ForCausalLM}Model"
     fi
 
-    debiased_models=(${model_to_debiased_models[$base_model]})
+    debiased_models=(${model_to_debiased_models["${base_model}_${bias_type}"]})
     for model_id in ${debiased_models[@]}; do
         base_model_id=$(basename "$model_id")
 
@@ -72,7 +72,7 @@ for model in ${masked_lm_models[@]}; do
     done
 
     base_model="${model%ForMaskedLM}Model"
-    debiased_models=(${model_to_debiased_models[$base_model]})
+    debiased_models=(${model_to_debiased_models["${base_model}_${bias_type}"]})
     for model_id in ${debiased_models[@]}; do
         base_model_id=$(basename "$model_id")
 

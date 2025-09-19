@@ -3,7 +3,7 @@
 source "shell_jobs/_experiment_configuration.sh"
 
 bert_base_models=("bert-base-cased" "bert-large-cased")
-bias_types=("gender")
+bias_types=("gender" "race" "religion")
 model="BertModel"
 for base_model in ${bert_base_models[@]}; do
     for bias_type in ${bias_types[@]}; do
@@ -45,7 +45,7 @@ done
 
 # run rlace for debiased models
 for model in ${models[@]}; do
-    debiased_models=(${model_to_debiased_models[$model]})  # Split string into array
+    debiased_models=(${model_to_debiased_models["${model}_${bias_type}"]})  # Split string into array
     for model_name in ${debiased_models[@]}; do
         if [[ $model_name == *"-F" ]] || [[ $model_name == *"-M" ]]; then
             continue

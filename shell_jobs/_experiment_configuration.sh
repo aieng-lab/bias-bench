@@ -17,62 +17,118 @@ eval "$(conda shell.bash hook)"
 conda activate bias-bench
 export PYTHONPATH="${PYTHONPATH}:${persistent_dir}"
 
-suffix=""
 
 llama_model="meta-llama/Llama-3.2-3B"
 llama_instruct_model="meta-llama/Llama-3.2-3B-Instruct"
 
+suffix=""
+race_suffix="-race_white_black"
+race_suffix="-race_white_black_asian_combined"
+religion_suffix="-religion_christian_muslim_jewish_combined"
+
 male_model="${changed_models_dir}/bert-base-cased-M${suffix}"
 female_model="${changed_models_dir}/bert-base-cased-F${suffix}"
-unbiased_model="${changed_models_dir}/bert-base-cased-N${suffix}"
-cda_model="${checkpoint_dir}/cda_c-bert-base-cased_t-gender_s-0"
+unbiased_model_gender="${changed_models_dir}/bert-base-cased-N${suffix}"
+unbiased_model_race="${changed_models_dir}/bert-base-cased-v7-race_white_black ${changed_models_dir}/bert-base-cased-v7-race_white_asian ${changed_models_dir}/bert-base-cased-v7-race_black_asian"
+unbiased_model_religion="${changed_models_dir}/bert-base-cased-v7-religion_christian_jewish ${changed_models_dir}/bert-base-cased-v7-religion_christian_muslim ${changed_models_dir}/bert-base-cased-v7-religion_muslim_jewish"
+cda_model_gender="${checkpoint_dir}/cda_c-bert-base-cased_t-gender_s-0"
+cda_model_race="${checkpoint_dir}/cda_c-bert-base-cased_t-race_s-0"
+cda_model_religion="${checkpoint_dir}/cda_c-bert-base-cased_t-religion_s-0"
 dropout_model="${checkpoint_dir}/dropout_c-bert-base-cased_s-0"
 
 male_model_bert_large_cased="${changed_models_dir}/bert-large-cased-M${suffix}"
 female_model_bert_large_cased="${changed_models_dir}/bert-large-cased-F${suffix}"
-unbiased_model_bert_large_cased="${changed_models_dir}/bert-large-cased-N${suffix}"
-cda_model_bert_large_cased="${checkpoint_dir}/cda_c-bert-large-cased_t-gender_s-0"
+unbiased_model_bert_large_cased_gender="${changed_models_dir}/bert-large-cased-N${suffix}"
+unbiased_model_bert_large_cased_race="${changed_models_dir}/bert-large-cased-v7-race_white_black ${changed_models_dir}/bert-large-cased-v7-race_white_asian ${changed_models_dir}/bert-large-cased-v7-race_black_asian"
+unbiased_model_bert_large_cased_religion="${changed_models_dir}/bert-large-cased-v7-religion_christian_jewish ${changed_models_dir}/bert-large-cased-v7-religion_christian_muslim ${changed_models_dir}/bert-large-cased-v7-religion_muslim_jewish"
+cda_model_bert_large_cased_gender="${checkpoint_dir}/cda_c-bert-large-cased_t-gender_s-0"
+cda_model_bert_large_cased_race="${checkpoint_dir}/cda_c-bert-large-cased_t-race_s-0"
+cda_model_bert_large_cased_religion="${checkpoint_dir}/cda_c-bert-large-cased_t-religion_s-0"
 dropout_model_bert_large_cased="${checkpoint_dir}/dropout_c-bert-large-cased_s-0"
 
 male_roberta_model="${changed_models_dir}/roberta-large-M${suffix}"
 female_roberta_model="${changed_models_dir}/roberta-large-F${suffix}"
-unbiased_roberta_model="${changed_models_dir}/roberta-large-N${suffix}"
-cda_roberta_model="${checkpoint_dir}/cda_c-roberta-large_t-gender_s-0"
+unbiased_roberta_model_gender="${changed_models_dir}/roberta-large-N${suffix}"
+unbiased_roberta_model_race="${changed_models_dir}/roberta-large-v7-race_white_asian ${changed_models_dir}/roberta-large-v7-race_black_asian ${changed_models_dir}/roberta-large-v7-race_white_black "
+unbiased_roberta_model_religion="${changed_models_dir}/roberta-large-v7-religion_muslim_jewish ${changed_models_dir}/roberta-large-v7-religion_christian_jewish ${changed_models_dir}/roberta-large-v7-religion_christian_muslim"
+cda_roberta_model_gender="${checkpoint_dir}/cda_c-roberta-large_t-gender_s-0"
+cda_roberta_model_race="${checkpoint_dir}/cda_c-roberta-large_t-race_s-0"
+cda_roberta_model_religion="${checkpoint_dir}/cda_c-roberta-large_t-religion_s-0"
 dropout_roberta_model="${checkpoint_dir}/dropout_c-roberta-large_s-0"
 
 male_distilbert_model="${changed_models_dir}/distilbert-base-cased-M${suffix}"
 female_distilbert_model="${changed_models_dir}/distilbert-base-cased-F${suffix}"
-unbiased_distilbert_model="${changed_models_dir}/distilbert-base-cased-N${suffix}"
-cda_distilbert_model="${checkpoint_dir}/cda_c-distilbert-base-cased_t-gender_s-0"
+unbiased_distilbert_model_gender="${changed_models_dir}/distilbert-base-cased-N${suffix}"
+unbiased_distilbert_model_race="${changed_models_dir}/distilbert-base-cased-v7-race_white_black ${changed_models_dir}/distilbert-base-cased-v7-race_white_asian ${changed_models_dir}/distilbert-base-cased-v7-race_black_asian"
+unbiased_distilbert_model_religion="${changed_models_dir}/distilbert-base-cased-v7-religion_christian_jewish ${changed_models_dir}/distilbert-base-cased-v7-religion_muslim_jewish ${changed_models_dir}/distilbert-base-cased-v7-religion_christian_muslim"
+cda_distilbert_model_gender="${checkpoint_dir}/cda_c-distilbert-base-cased_t-gender_s-0"
+cda_distilbert_model_race="${checkpoint_dir}/cda_c-distilbert-base-cased_t-race_s-0"
+cda_distilbert_model_religion="${checkpoint_dir}/cda_c-distilbert-base-cased_t-religion_s-0"
 dropout_distilbert_model="${checkpoint_dir}/dropout_c-distilbert-base-cased_s-0"
+
 
 male_gpt2_model="${changed_models_dir}/gpt2-M${suffix}"
 female_gpt2_model="${changed_models_dir}/gpt2-F${suffix}"
-unbiased_gpt2_model="${changed_models_dir}/gpt2-N${suffix}"
-cda_gpt2_model="${checkpoint_dir}/cda_c-gpt2_t-gender_s-0"
+unbiased_gpt2_model_gender="${changed_models_dir}/gpt2-N${suffix}"
+unbiased_gpt2_model_race="${changed_models_dir}/gpt2-v7-race_white_black ${changed_models_dir}/gpt2-v7-race_black_asian ${changed_models_dir}/gpt2-v7-race_white_black ${changed_models_dir}/gpt2-v7-race_white_asian"
+unbiased_gpt2_model_religion="${changed_models_dir}/gpt2-v7-religion_christian_muslim ${changed_models_dir}/gpt2-v7-religion_christian_jewish ${changed_models_dir}/gpt2-v7-religion_muslim_jewish"
+cda_gpt2_model_gender="${checkpoint_dir}/cda_c-gpt2_t-gender_s-0"
+cda_gpt2_model_race="${checkpoint_dir}/cda_c-gpt2_t-race_s-0"
+cda_gpt2_model_religion="${checkpoint_dir}/cda_c-gpt2_t-religion_s-0"
 dropout_gpt2_model="${checkpoint_dir}/dropout_c-gpt2_s-0"
 
 male_llama_model="${changed_models_dir}/Llama-3.2-3B-M"
 female_llama_model="${changed_models_dir}/Llama-3.2-3B-F"
-unbiased_llama_model="${changed_models_dir}/Llama-3.2-3B-N"
+unbiased_llama_model_gender="${changed_models_dir}/Llama-3.2-3B-N"
+unbiased_llama_model_race="${changed_models_dir}/Llama-3.2-3B-v5-race_white_black ${changed_models_dir}/Llama-3.2-3B-v5-race_white_asian ${changed_models_dir}/Llama-3.2-3B-v5-race_black_asian"
+unbiased_llama_model_religion="${changed_models_dir}/Llama-3.2-3B-v5-religion_christian_jewish ${changed_models_dir}/Llama-3.2-3B-v5-religion_christian_muslim ${changed_models_dir}/Llama-3.2-3B-v5-religion_muslim_jewish"
 
 male_llama_instruct_model="${changed_models_dir}/Llama-3.2-3B-Instruct-M"
 female_llama_instruct_model="${changed_models_dir}/Llama-3.2-3B-Instruct-F"
-unbiased_llama_instruct_model="${changed_models_dir}/Llama-3.2-3B-Instruct-N"
+unbiased_llama_instruct_model_gender="${changed_models_dir}/Llama-3.2-3B-Instruct-N"
+unbiased_llama_instruct_model_race="${changed_models_dir}/Llama-3.2-3B-Instruct-v5-race_white_black ${changed_models_dir}/Llama-3.2-3B-Instruct-v5-race_white_asian ${changed_models_dir}/Llama-3.2-3B-Instruct-v5-race_black_asian"
+unbiased_llama_instruct_model_religion="${changed_models_dir}/Llama-3.2-3B-Instruct-v5-religion_christian_muslim ${changed_models_dir}/Llama-3.2-3B-Instruct-v5-religion_christian_jewish ${changed_models_dir}/Llama-3.2-3B-Instruct-v5-religion_muslim_jewish"
 
-gradiend_debiased_bert_models="${male_model} ${female_model} ${unbiased_model} ${male_model_bert_large_cased} ${female_model_bert_large_cased} ${unbiased_model_bert_large_cased}"
-debiased_bert_models="${gradiend_debiased_bert_models} ${cda_model} ${dropout_model} ${cda_model_bert_large_cased} ${dropout_model_bert_large_cased}"
-gradiend_debiased_roberta_models="${male_roberta_model} ${female_roberta_model} ${unbiased_roberta_model}"
-debiased_roberta_models="${gradiend_debiased_roberta_models} ${cda_roberta_model} ${dropout_roberta_model}"
-gradiend_debiased_distilbert_models="${male_distilbert_model} ${female_distilbert_model} ${unbiased_distilbert_model}"
-debiased_distilbert_models="${gradiend_debiased_distilbert_models} ${cda_distilbert_model} ${dropout_distilbert_model}"
-gradiend_debiased_gpt2_models="${unbiased_gpt2_model} ${female_gpt2_model} ${male_gpt2_model}"
-debiased_gpt2_models="${gradiend_debiased_gpt2_models} ${cda_gpt2_model} ${dropout_gpt2_model}"
-debiased_llama_models="${unbiased_llama_model} ${female_llama_model} ${male_llama_model}"
-gradiend_debiased_llama_models="${debiased_llama_models}"
-debiased_llama_instruct_models="${unbiased_llama_instruct_model} ${female_llama_instruct_model} ${male_llama_instruct_model}"
-gradiend_debiased_llama_instruct_models="${debiased_llama_instruct_models}"
 
+
+gradiend_debiased_bert_models_gender="${male_model} ${female_model} ${unbiased_model_gender} ${male_model_bert_large_cased} ${female_model_bert_large_cased} ${unbiased_model_bert_large_cased_gender}"
+debiased_bert_models_gender="${cda_model_bert_large_cased_gender} ${dropout_model_bert_large_cased} ${gradiend_debiased_bert_models_gender} ${cda_model_gender} ${dropout_model}"
+gradiend_debiased_roberta_models_gender="${male_roberta_model} ${female_roberta_model} ${unbiased_roberta_model_gender}"
+debiased_roberta_models_gender="${gradiend_debiased_roberta_models_gender} ${cda_roberta_model_gender} ${dropout_roberta_model}"
+gradiend_debiased_distilbert_models_gender="${male_distilbert_model} ${female_distilbert_model} ${unbiased_distilbert_model_gender}"
+debiased_distilbert_models_gender="${gradiend_debiased_distilbert_models_gender} ${cda_distilbert_model_gender} ${dropout_distilbert_model}"
+gradiend_debiased_gpt2_models_gender="${unbiased_gpt2_model_gender} ${female_gpt2_model} ${male_gpt2_model}"
+debiased_gpt2_models_gender="${gradiend_debiased_gpt2_models_gender} ${cda_gpt2_model_gender} ${dropout_gpt2_model}"
+debiased_llama_models_gender="${unbiased_llama_model_gender} ${female_llama_model} ${male_llama_model}"
+gradiend_debiased_llama_models_gender="${debiased_llama_models_gender}"
+debiased_llama_instruct_models_gender="${unbiased_llama_instruct_model_gender} ${female_llama_instruct_model} ${male_llama_instruct_model}"
+gradiend_debiased_llama_instruct_models_gender="${debiased_llama_instruct_models_gender}"
+
+gradiend_debiased_bert_models_race="${unbiased_model_bert_large_cased_race} ${unbiased_model_race}"
+debiased_bert_models_race=" ${cda_model_bert_large_cased_race} ${dropout_model_bert_large_cased} ${gradiend_debiased_bert_models_race} ${cda_model_race} ${dropout_model}"
+gradiend_debiased_roberta_models_race="${unbiased_roberta_model_race}"
+debiased_roberta_models_race="${gradiend_debiased_roberta_models_race} ${cda_roberta_model_race} ${dropout_roberta_model}"
+gradiend_debiased_distilbert_models_race="${unbiased_distilbert_model_race}"
+debiased_distilbert_models_race="${gradiend_debiased_distilbert_models_race} ${cda_distilbert_model_race} ${dropout_distilbert_model}"
+gradiend_debiased_gpt2_models_race="${unbiased_gpt2_model_race}"
+debiased_gpt2_models_race="${gradiend_debiased_gpt2_models_race} ${cda_gpt2_model_race} ${dropout_gpt2_model}"
+debiased_llama_models_race="${unbiased_llama_model_race}"
+gradiend_debiased_llama_models_race="${debiased_llama_models_race}"
+debiased_llama_instruct_models_race="${unbiased_llama_instruct_model_race}"
+gradiend_debiased_llama_instruct_models_race="${debiased_llama_instruct_models_race}"
+
+gradiend_debiased_bert_models_religion="${unbiased_model_religion} ${male_model_bert_large_cased} ${female_model_bert_large_cased} ${unbiased_model_bert_large_cased_religion}"
+debiased_bert_models_religion="${cda_model_bert_large_cased_religion} ${dropout_model_bert_large_cased} ${gradiend_debiased_bert_models_religion} ${cda_model_religion} ${dropout_model}"
+gradiend_debiased_roberta_models_religion="${unbiased_roberta_model_religion}"
+debiased_roberta_models_religion="${gradiend_debiased_roberta_models_religion} ${cda_roberta_model_religion} ${dropout_roberta_model}"
+gradiend_debiased_distilbert_models_religion="${unbiased_distilbert_model_religion}"
+debiased_distilbert_models_religion="${gradiend_debiased_distilbert_models_religion} ${cda_distilbert_model_religion} ${dropout_distilbert_model}"
+gradiend_debiased_gpt2_models_religion="${unbiased_gpt2_model_religion}"
+debiased_gpt2_models_religion="${gradiend_debiased_gpt2_models_religion} ${cda_gpt2_model_religion} ${dropout_gpt2_model}"
+debiased_llama_models_religion="${unbiased_llama_model_religion}"
+gradiend_debiased_llama_models_religion="${debiased_llama_models_religion}"
+debiased_llama_instruct_models_religion="${unbiased_llama_instruct_model_religion}"
+gradiend_debiased_llama_instruct_models_religion="${debiased_llama_instruct_models_religion}"
 
 
 model_name_or_paths=(
@@ -80,9 +136,52 @@ model_name_or_paths=(
   "bert-large-cased"
   "roberta-large"
   "distilbert-base-cased"
+  "distilbert-base-cased"
   "gpt2"
   $llama_model
   $llama_instruct_model
+)
+
+declare -A model_to_debiased_gradiend_models=(
+    ["BertModel_gender"]="${gradiend_debiased_bert_models_gender}"
+    ["BertModel_race"]="${gradiend_debiased_bert_models_race}"
+    ["BertModel_religion"]="${gradiend_debiased_bert_models_religion}"
+    ["RobertaModel_gender"]="${gradiend_debiased_roberta_models_gender}"
+    ["RobertaModel_race"]="${gradiend_debiased_roberta_models_race}"
+    ["RobertaModel_religion"]="${gradiend_debiased_roberta_models_religion}"
+    ["DistilbertModel_gender"]="${gradiend_debiased_distilbert_models_gender}"
+    ["DistilbertModel_race"]="${gradiend_debiased_distilbert_models_race}"
+    ["DistilbertModel_religion"]="${gradiend_debiased_distilbert_models_religion}"
+    ["GPT2Model_gender"]="${gradiend_debiased_gpt2_models_gender}"
+    ["GPT2Model_race"]="${gradiend_debiased_gpt2_models_race}"
+    ["GPT2Model_religion"]="${gradiend_debiased_gpt2_models_religion}"
+    ["LlamaModel_gender"]="${gradiend_debiased_llama_models_gender}"
+    ["LlamaModel_race"]="${gradiend_debiased_llama_models_race}"
+    ["LlamaModel_religion"]="${gradiend_debiased_llama_models_religion}"
+    ["LlamaInstructModel_gender"]="${gradiend_debiased_llama_instruct_models_gender}"
+    ["LlamaInstructModel_race"]="${gradiend_debiased_llama_instruct_models_race}"
+    ["LlamaInstructModel_religion"]="${gradiend_debiased_llama_instruct_models_religion}"
+)
+
+declare -A model_to_debiased_models=(
+    ["BertModel_gender"]="${debiased_bert_models_gender}"
+    ["BertModel_race"]="${debiased_bert_models_race}"
+    ["BertModel_religion"]="${debiased_bert_models_religion}"
+    ["RobertaModel_gender"]="${debiased_roberta_models_gender}"
+    ["RobertaModel_race"]="${debiased_roberta_models_race}"
+    ["RobertaModel_religion"]="${debiased_roberta_models_religion}"
+    ["DistilbertModel_gender"]="${debiased_distilbert_models_gender}"
+    ["DistilbertModel_race"]="${debiased_distilbert_models_race}"
+    ["DistilbertModel_religion"]="${debiased_distilbert_models_religion}"
+    ["GPT2Model_gender"]="${debiased_gpt2_models_gender}"
+    ["GPT2Model_race"]="${debiased_gpt2_models_race}"
+    ["GPT2Model_religion"]="${debiased_gpt2_models_religion}"
+    ["LlamaModel_gender"]="${debiased_llama_models_gender}"
+    ["LlamaModel_race"]="${debiased_llama_models_race}"
+    ["LlamaModel_religion"]="${debiased_llama_models_religion}"
+    ["LlamaInstructModel_gender"]="${debiased_llama_instruct_models_gender}"
+    ["LlamaInstructModel_race"]="${debiased_llama_instruct_models_race}"
+    ["LlamaInstructModel_religion"]="${debiased_llama_instruct_models_religion}"
 )
 
 declare -A model_name_or_path_to_model=(
@@ -95,24 +194,11 @@ declare -A model_name_or_path_to_model=(
     [$llama_instruct_model]="LlamaInstructModel"
 )
 
-declare -A model_to_debiased_gradiend_models=(
-    ["BertModel"]="${gradiend_debiased_bert_models}"
-    ["RobertaModel"]="${gradiend_debiased_roberta_models}"
-    ["DistilbertModel"]="${gradiend_debiased_distilbert_models}"
-    ["GPT2Model"]="${gradiend_debiased_gpt2_models}"
-    ["LlamaModel"]="${gradiend_debiased_llama_models}"
-    ["LlamaInstructModel"]="${gradiend_debiased_llama_instruct_models}"
+bias_types=(
+    "gender"
+    "race"
+    "religion"
 )
-
-declare -A model_to_debiased_models=(
-    ["BertModel"]="${debiased_bert_models}"
-    ["RobertaModel"]="${debiased_roberta_models}"
-    ["DistilbertModel"]="${debiased_distilbert_models}"
-    ["GPT2Model"]="${debiased_gpt2_models}"
-    ["LlamaModel"]="${debiased_llama_models}"
-    ["LlamaInstructModel"]="${debiased_llama_instruct_models}"
-)
-
 
 seeds=(0 1 2)
 
@@ -122,20 +208,16 @@ projection_matrix_prefixes=(
   "leace_"
 )
 
-bias_types=(
-    "gender"
-    #"race"
-    #"religion"
-)
+
 
 # Baseline models.
 models=(
-    "GPT2Model"
-    "DistilbertModel"
-    "RobertaModel"
-    "BertModel"
     "LlamaModel"
     "LlamaInstructModel"
+    "BertModel"
+    "DistilbertModel"
+    "GPT2Model"
+    "RobertaModel"
 )
 
 # Baseline masked language models.
@@ -198,8 +280,8 @@ sentence_debias_causal_lm_models=(
 )
 
 inlp_causal_lm_models=(
-    "INLPLlamaForCausalLM"
     "INLPGPT2LMHeadModel"
+    "INLPLlamaForCausalLM"
     "INLPLlamaInstructForCausalLM"
 )
 
@@ -224,13 +306,13 @@ self_debias_causal_lm_models=(
 
 # Debiased base models.
 sentence_debias_models=(
+    "SentenceDebiasLlamaInstructModel"
+    "SentenceDebiasLlamaModel"
+    "SentenceDebiasGPT2Model"
     "SentenceDebiasBertModel"
     "SentenceDebiasBertLargeModel"
     "SentenceDebiasRobertaModel"
     "SentenceDebiasDistilbertModel"
-    "SentenceDebiasGPT2Model"
-    "SentenceDebiasLlamaModel"
-    "SentenceDebiasLlamaInstructModel"
 )
 
 inlp_models=(
@@ -530,15 +612,15 @@ representation_types=(
 
 # GLUE variables.
 glue_tasks=(
+    "wnli"
+    "stsb"
+    "sst2"
     "cola"
-    "mnli"
-    "mrpc"
-    "qnli"
     "qqp"
     "rte"
-    "sst2"
-    "stsb"
-    "wnli"
+    "mrpc"
+    "mnli"
+    "qnli"
 )
 
 # SEAT variables.
@@ -569,5 +651,22 @@ seat_tests="sent-weat6 "\
 "sent-weat8 "\
 "sent-weat8b"
 
+
+
+seat_gender_tests=${seat_tests}
+
+seat_race_tests="sent-angry_black_woman_stereotype "\
+"sent-angry_black_woman_stereotype_b "\
+"sent-weat3 "\
+"sent-weat3b "\
+"sent-weat4 "\
+"sent-weat5 "\
+"sent-weat5b "
+
+
+seat_religion_tests="sent-religion1 "\
+"sent-religion1b "\
+"sent-religion2 "\
+"sent-religion2b "
 
 declare -A model_to_n_classifiers=(["BertModel"]="80" ["BertLargeModel"]="80" ["AlbertModel"]="80" ["RobertaModel"]="80" ["DebertaModel"]="80" ["DistilbertModel"]="80" ["GPT2Model"]="10" ["LlamaModel"]="80" ["LlamaInstructModel"]="80")

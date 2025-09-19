@@ -26,12 +26,16 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+import evaluate
+import frozendict
 import torch
 import datasets
 import numpy as np
+import tqdm
 from datasets import load_dataset, load_metric
 
 import transformers
+from scipy.special import softmax
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -48,6 +52,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
+import torch.nn.functional as F
 
 from bias_bench.model import models, load_tokenizer
 from bias_bench.util import CustomTrainingArguments
@@ -60,7 +65,8 @@ require_version(
     "To fix: pip install -r examples/pytorch/text-classification/requirements.txt",
 )
 
-task_to_keys = {
+glue_task_to_keys = {
+    # GLUE
     "cola": ("sentence", None),
     "mnli": ("premise", "hypothesis"),
     "mrpc": ("sentence1", "sentence2"),
@@ -70,6 +76,25 @@ task_to_keys = {
     "sst2": ("sentence", None),
     "stsb": ("sentence1", "sentence2"),
     "wnli": ("sentence1", "sentence2"),
+}
+
+super_glue_task_to_keys = {
+    # SuperGLUE
+    "boolq": ("passage", "question"),
+    "cb": ("premise", "hypothesis"),
+    "copa": ("premise", None), # choice1, choice2
+    "multirc": ("paragraph", "question"), # answer
+    "record": ("passage", "query"), # answers
+    "rte": ("premise", "hypothesis"), #
+    "wic": ("sentence1", "sentence2"),
+    "wsc.fixed": ("text", None),
+    "axb": ("sentence1", "sentence2"),
+    "axg": ("sentence1", "sentence2"),
+}
+
+benchmark_to_tasks = {
+    "glue": glue_task_to_keys,
+    "super_glue": super_glue_task_to_keys,
 }
 
 logger = logging.getLogger(__name__)
@@ -85,11 +110,19 @@ class DataTrainingArguments:
     the command line.
     """
 
+    benchmark_name: Optional[str] = field(
+        default='glue',
+        metadata={
+            "help": "The name of the benchmark to use (via the datasets library, e.g, 'glue' or 'super_glue')."
+        },
+    )
+
     task_name: Optional[str] = field(
         default=None,
         metadata={
             "help": "The name of the task to train on: "
-            + ", ".join(task_to_keys.keys())
+            + ", ".join(glue_task_to_keys.keys()) + ' for GLUE'
+            + ", ".join(super_glue_task_to_keys.keys()) + ' for SuperGLUE'
         },
     )
     dataset_name: Optional[str] = field(
@@ -159,11 +192,23 @@ class DataTrainingArguments:
     )
 
     early_stopping: str = field(
-        default=False,
+        default=True,
         metadata={"help": "Whether to use early stopping or not."},
     )
 
     def __post_init__(self):
+        if self.benchmark_name is None:
+            raise ValueError("You should specify a benchmark name, e.g., 'glue' or 'super_glue'.")
+
+        if self.benchmark_name not in benchmark_to_tasks.keys():
+            raise ValueError(
+                "Unknown benchmark, you should pick one in "
+                + ",".join(benchmark_to_tasks.keys())
+            )
+
+        print("Using benchmark:", self.benchmark_name)
+        task_to_keys = benchmark_to_tasks[self.benchmark_name]
+
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
             if self.task_name not in task_to_keys.keys():
@@ -257,6 +302,374 @@ class ModelArguments:
     )
 
 
+from copy import deepcopy
+
+def preprocess_boolq(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    # Passage = context, Question = query
+    result = tokenizer(
+        examples["passage"],
+        examples["question"],
+        padding=padding,
+        max_length=max_seq_length,
+        truncation=True,
+    )
+    if "label" in examples and label_to_id is not None:
+        result["label"] = [label_to_id[l] for l in examples["label"]]
+    return result
+
+
+def preprocess_cb_rte(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    # CB and RTE have premise / hypothesis
+    result = tokenizer(
+        examples["premise"],
+        examples["hypothesis"],
+        padding=padding,
+        max_length=max_seq_length,
+        truncation=True,
+    )
+    if "label" in examples and label_to_id is not None:
+        result["label"] = [label_to_id[l] for l in examples["label"]]
+    return result
+
+
+def preprocess_wic(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    # WIC: sentence1, sentence2, and a target word (can optionally include in text)
+    result = tokenizer(
+        examples["sentence1"],
+        examples["sentence2"],
+        padding=padding,
+        max_length=max_seq_length,
+        truncation=True,
+    )
+    if "label" in examples and label_to_id is not None:
+        result["label"] = [label_to_id[l] for l in examples["label"]]
+    return result
+
+
+def preprocess_copa_old(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    batch_size = len(examples['premise'])
+
+    # Initialize result structure
+    result = {
+        'input_ids': [],
+        'attention_mask': [],
+        'token_type_ids': [],
+    }
+
+    for i in range(batch_size):
+        premise = examples['premise'][i].strip()
+        choice1 = examples['choice1'][i].strip()
+        choice2 = examples['choice2'][i].strip()
+        question = examples['question'][i]
+
+        # Following original COPA methodology:
+        # Concatenate context with each answer choice separately using [SEP] token
+        if question == "cause":
+            # For cause questions: "Why did [premise]?"
+            # Format: [choice] [SEP] [premise]
+            context1 = f"{choice1} [SEP] {premise}"
+            context2 = f"{choice2} [SEP] {premise}"
+        else:  # effect
+            # For effect questions: "What happened as a result?"
+            # Format: [premise] [SEP] [choice]
+            context1 = f"{premise} [SEP] {choice1}"
+            context2 = f"{premise} [SEP] {choice2}"
+
+        # Tokenize both choices for this example
+        choices = [context1, context2]
+
+        tokenized = tokenizer(
+            choices,
+            padding=padding,
+            max_length=max_seq_length,
+            truncation=True,
+        )
+
+        # Add to results - each example has 2 choices
+        result['input_ids'].append(tokenized['input_ids'])
+        result['attention_mask'].append(tokenized['attention_mask'])
+        result['token_type_ids'].append(tokenized['token_type_ids'])
+
+    # Add labels if present
+    if "label" in examples:
+        result["labels"] = examples["label"]
+
+    return result
+
+def generic_preprocess_mc(
+    examples,
+    tokenizer,
+    padding,
+    max_seq_length,
+    context_col,
+    choice_cols=None,
+    choices_column=None,
+    question_col=None,
+    replace_placeholder=False,
+    copa_style=False,
+    label_to_id=None,
+):
+    """
+    Generic multiple-choice / pairwise preprocess:
+      - context_col: name of column that holds the passage/context (string)
+      - choice_cols: list of column names for choices (e.g. ['choice1','choice2']) OR
+      - choices_column: single column name that itself contains a list of choices per example (e.g. 'entities')
+      - question_col: optional (e.g. COPA's 'question' field or ReCoRD's 'query')
+      - replace_placeholder: if True, replaces '@placeholder' in question_col with each candidate (ReCoRD)
+      - copa_style: if True, use COPA ordering: when question == "cause" -> (choice, premise), else (premise, choice)
+      - label_to_id: optional mapping from label strings to ints
+    Returns a dict with keys: input_ids, attention_mask, (token_type_ids maybe), labels (if present).
+    """
+    batch_size = len(examples[context_col])
+    result = {
+        'input_ids': [],
+        'attention_mask': [],
+    }
+    # token_type_ids are optional (some tokenizers don't return them)
+    include_token_type = False
+
+    for i in range(batch_size):
+        context = examples[context_col][i].strip()
+
+        # gather choices
+        if choice_cols is not None:
+            choices = [examples[c][i].strip() for c in choice_cols]
+        elif choices_column is not None:
+            # assume examples[choices_column][i] is an iterable of strings
+            choices = [c.strip() for c in examples[choices_column][i]]
+        else:
+            raise ValueError("Either choice_cols or choices_column must be provided.")
+
+        # Build pair lists according to flags
+        pair_a = []
+        pair_b = []
+
+        for choice in choices:
+            if replace_placeholder:
+                # e.g. ReCoRD: context [SEP] query_with_placeholder_replaced_by_choice
+                if question_col is None:
+                    raise ValueError("question_col must be provided when replace_placeholder=True")
+                query = examples[question_col][i].replace('@placeholder', choice).strip()
+                pair_a.append(context)
+                pair_b.append(query)
+            elif copa_style:
+                # e.g. COPA: question can be "cause" or "effect"
+                if question_col is None:
+                    raise ValueError("question_col must be provided when copa_style=True")
+                qtype = examples[question_col][i]
+                if qtype == "cause":
+                    # format: [choice] [SEP] [premise]
+                    pair_a.append(choice)
+                    pair_b.append(context)
+                else:  # "effect" or other -> [premise] [SEP] [choice]
+                    pair_a.append(context)
+                    pair_b.append(choice)
+            else:
+                # default: context first, choice second --> [context] [SEP] [choice]
+                pair_a.append(context)
+                pair_b.append(choice)
+
+        # Tokenize the set of pairs for this example in one call
+        tokenized = tokenizer(
+            pair_a,
+            pair_b,
+            padding=padding,
+            max_length=max_seq_length,
+            truncation=True,
+        )
+
+        # Track whether token_type_ids exists
+        if 'token_type_ids' in tokenized:
+            include_token_type = True
+
+        # Append tokenized lists for this example (shape: num_choices x seq_len)
+        result['input_ids'].append(tokenized['input_ids'])
+        result['attention_mask'].append(tokenized['attention_mask'])
+        if 'token_type_ids' in tokenized:
+            # ensure key exists (we'll add after loop if needed)
+            result.setdefault('token_type_ids', []).append(tokenized['token_type_ids'])
+
+    # Labels (map if label_to_id provided)
+    if "label" in examples:
+        if label_to_id is not None:
+            result["labels"] = [label_to_id[l] for l in examples["label"]]
+        else:
+            result["labels"] = examples["label"]
+
+    return result
+
+
+# --- COPA wrapper ---
+def preprocess_copa(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    """
+    COPA expects:
+      - context_col = 'premise'
+      - choices in columns 'choice1' and 'choice2'
+      - question in 'question' with values 'cause' or 'effect'
+    """
+    return generic_preprocess_mc(
+        examples=examples,
+        tokenizer=tokenizer,
+        padding=padding,
+        max_seq_length=max_seq_length,
+        context_col='premise',
+        choice_cols=['choice1', 'choice2'],
+        question_col='question',
+        copa_style=True,
+        label_to_id=label_to_id,
+    )
+
+def preprocess_wsc_fixed(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    second_sentences = [
+        f"Pronoun: {p}; Candidate: {c}"
+        for p, c in zip(examples["span1_text"], examples["span2_text"])
+    ]
+
+    result = tokenizer(
+        examples["text"],
+        second_sentences,
+        padding=padding,
+        max_length=max_seq_length,
+        truncation=True,
+    )
+
+    if "label" in examples:
+        result["labels"] = examples["label"]  # already 0 or 1
+    return result
+
+def preprocess_record(examples, tokenizer, padding, max_seq_length, label_to_id=None, debug=False):
+    tokenized = tokenizer(
+        examples["passage"],
+        examples["query"],
+        truncation=True,
+        padding="max_length",
+        max_length=max_seq_length,
+        return_offsets_mapping=True,
+    )
+
+    entity_spans = []
+    labels = []
+    answerss = []
+    entitiess = []
+    idxs = []
+
+    for i, (passage, query, entities, answers, offset_mapping, idx) in enumerate(zip(
+        examples["passage"],
+        examples["query"],
+        examples["entity_spans"],   # dict with "start", "end", "text"
+        examples.get("answers", [[] for _ in examples["passage"]]),
+        tokenized["offset_mapping"],
+        examples["idx"],
+    )):
+        sequence_ids = tokenized.sequence_ids(i)  # sequence id list for this example
+
+        # Only consider passage tokens (sequence_id == 0)
+        passage_token_indices = [j for j, seq_id in enumerate(sequence_ids) if seq_id == 0]
+
+        spans = []
+        labs = []
+        ent_texts = []
+
+        for start, end, text in zip(entities["start"], entities["end"], entities["text"]):
+            # collect token indices fully inside the char span
+            token_spans = [
+                j for j in passage_token_indices
+                if offset_mapping[j][0] is not None
+                   and not (offset_mapping[j][1] <= start or offset_mapping[j][0] >= end)
+            ]
+
+            if token_spans:
+                span_tuple = (token_spans[0], token_spans[-1] + 1)
+                spans.append(span_tuple)
+
+                def normalize(s):
+                    return s.lower().strip(" .,'\"-")
+
+                norm_answers = [normalize(a) for a in answers]
+                norm_text = normalize(text)
+                label = 1 if norm_text in norm_answers else 0
+
+                labs.append(label)
+                ent_texts.append(text)
+
+        entity_spans.append(spans)
+        labels.append(labs)
+        answerss.append(answers)
+        entitiess.append(ent_texts)
+        idxs.append(idx)
+
+        # Debug: show 1–2 examples of mapping
+        if debug and i < 2:
+            print("=" * 60)
+            print(f"Passage: {passage[:150]}...")
+            print(f"Query:   {query}")
+            print(f"Entities: {list(zip(entities['text'], entities['start'], entities['end']))}")
+            print(f"Tokenized passage (first 40 tokens):")
+            print(tokenizer.convert_ids_to_tokens(tokenized['input_ids'][i][:40]))
+            print(f"Spans mapped: {spans}")
+            print(f"Entities mapped: {ent_texts}")
+            print(f"Labels: {labs}")
+
+    # Add aligned data back to tokenized dict
+    tokenized["entity_spans"] = entity_spans
+    tokenized["labels"] = labels
+    tokenized["answers"] = answerss
+    tokenized["entities"] = entitiess
+    tokenized["idx"] = idxs
+
+    return tokenized
+
+
+def preprocess_multirc(examples, tokenizer, padding, max_seq_length, label_to_id=None):
+    """
+    Prepare MultiRC examples for sequence classification.
+    Each row corresponds to one candidate answer with a True/False label.
+    """
+    encodings = tokenizer(
+        examples["paragraph"],
+        [q + " " + a for q, a in zip(examples["question"], examples["answer"])],
+        padding=padding,
+        truncation=True,
+        max_length=max_seq_length,
+    )
+
+    # Convert label strings/booleans to integers
+    labels = []
+    for lab in examples["label"]:
+        if isinstance(lab, str):
+            labels.append(label_to_id.get(lab, 0) if label_to_id else int(lab == "True"))
+        else:
+            labels.append(int(lab))
+
+    encodings["labels"] = labels
+    return encodings
+
+
+from torch.utils.data import DataLoader
+import torch
+
+def record_collator(features):
+    batch = {}
+
+    # Collect available keys (some models don’t use token_type_ids)
+    for key in ["input_ids", "attention_mask", "token_type_ids"]:
+        if key in features[0] and features[0][key] is not None:
+            batch[key] = torch.tensor([f[key] for f in features], dtype=torch.long)
+
+    # Entity spans stay as a list (ragged structure)
+    batch["entity_spans"] = [f["entity_spans"] for f in features]
+
+    # Pad labels to same number of entities
+    max_ents = max(len(f["labels"]) for f in features)
+    labels = torch.full((len(features), max_ents), -100, dtype=torch.long)
+    for i, f in enumerate(features):
+        labels[i, : len(f["labels"])] = torch.tensor(f["labels"], dtype=torch.long)
+    batch["labels"] = labels
+
+    return batch
+
+
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -287,6 +700,8 @@ def main():
             score = data['eval_matthews_correlation']
         elif 'eval_pearson' in data:
             score = data['eval_pearson']
+        elif 'eval_f1' in data:
+            score = data['eval_f1']
         else:
             raise ValueError("No score found in the results file", result_file, data)
         print('Score:', score)
@@ -298,7 +713,7 @@ def main():
             print('New output dir:', training_args.output_dir)
         else:
             print('Results already computed', result_file)
-            return
+            #return
     else:
         print(result_file)
 
@@ -363,7 +778,7 @@ def main():
     if data_args.task_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
-            "glue", data_args.task_name, cache_dir=model_args.cache_dir
+            data_args.benchmark_name, data_args.task_name, cache_dir=model_args.cache_dir
         )
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
@@ -415,8 +830,12 @@ def main():
     if data_args.task_name is not None:
         is_regression = data_args.task_name == "stsb"
         if not is_regression:
-            label_list = raw_datasets["train"].features["label"].names
-            num_labels = len(label_list)
+            if data_args.task_name == 'record':
+                label_list = [0] # dummy values
+                num_labels = 1
+            else:
+                label_list = raw_datasets["train"].features["label"].names
+                num_labels = len(label_list)
         else:
             num_labels = 1
     else:
@@ -433,6 +852,7 @@ def main():
             label_list = raw_datasets["train"].unique("label")
             label_list.sort()  # Let's sort it for determinism
             num_labels = len(label_list)
+    task_to_keys = benchmark_to_tasks[data_args.benchmark_name]
 
     # Load pretrained model and tokenizer
     #
@@ -468,8 +888,15 @@ def main():
         kwargs["projection_matrix"] = projection_matrix
 
     print("=" * 40)
-    print(f"Loading: {model_args.model}")
-    model = getattr(models, model_args.model)(
+    model_type = model_args.model
+    if data_args.task_name in ['copa']:
+        model_type = model_type.replace('ForSequenceClassification', 'ForMultipleChoice')
+    elif data_args.task_name in ['record']:
+        model_type = model_type.replace('ForSequenceClassification', 'ForRecord')
+        #model_type = model_type.replace('ForSequenceClassification', 'ForReCoRD')
+
+    print(f"Loading: {model_type}")
+    model = getattr(models, model_type)(
         model_args.model_name_or_path, config=config, **kwargs
     )
     print("=" * 40)
@@ -541,7 +968,7 @@ def main():
         )
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
 
-    def preprocess_function(examples):
+    def default_preprocess_function(examples):
         # Tokenize the texts
         args = (
             (examples[sentence1_key],)
@@ -559,19 +986,52 @@ def main():
             ]
         return result
 
-    with training_args.main_process_first(desc="dataset map pre-processing"):
-        raw_datasets = raw_datasets.map(
-            preprocess_function,
-            batched=True,
-            load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on dataset",
+    superglue_preprocessors = {
+        "boolq": preprocess_boolq,
+        "cb": preprocess_cb_rte,
+        "rte": preprocess_cb_rte,
+        "wic": preprocess_wic,
+        "wsc.fixed": preprocess_wsc_fixed,  # WSC might need custom coref resolution
+        "copa": preprocess_copa,
+        "multirc": preprocess_multirc,
+        "record": preprocess_record,
+    }
+
+    if data_args.benchmark_name == "super_glue" and data_args.task_name in superglue_preprocessors:
+        preprocess_function = lambda examples: superglue_preprocessors[data_args.task_name](
+            examples, tokenizer, padding, max_seq_length, label_to_id
         )
+    else:
+        preprocess_function = default_preprocess_function
+
+
+    def preprocess(ds):
+        if data_args.task_name == 'record':
+            with training_args.main_process_first(desc="dataset map pre-processing"):
+                return ds.map(
+                    preprocess_function,
+                    batched=True,
+                    load_from_cache_file=not data_args.overwrite_cache,
+                    desc="Running tokenizer on dataset",
+                    remove_columns=ds["train"].column_names,
+                )
+
+        else:
+            with training_args.main_process_first(desc="dataset map pre-processing"):
+                return ds.map(
+                    preprocess_function,
+                    batched=True,
+                    load_from_cache_file=not data_args.overwrite_cache,
+                    desc="Running tokenizer on dataset",
+                )
+    raw_datasets = preprocess(raw_datasets)
+
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets["train"]
         if data_args.max_train_samples is not None:
-            train_dataset = train_dataset.select(range(data_args.max_train_samples))
+            train_dataset = train_dataset.select(range(min(len(train_dataset), data_args.max_train_samples)))
 
     if training_args.do_eval:
         if (
@@ -592,13 +1052,13 @@ def main():
     ):
         if "test" not in raw_datasets and "test_matched" not in raw_datasets:
             raise ValueError("--do_predict requires a test dataset")
-        predict_dataset = raw_datasets[
-            "test_matched" if data_args.task_name == "mnli" else "test"
-        ]
-        if data_args.max_predict_samples is not None:
-            predict_dataset = predict_dataset.select(
-                range(data_args.max_predict_samples)
-            )
+        #predict_dataset = raw_datasets[
+        #    "test_matched" if data_args.task_name == "mnli" else "test"
+        #]
+        #if data_args.max_predict_samples is not None:
+        #    predict_dataset = predict_dataset.select(
+        #        range(data_args.max_predict_samples)
+        #    )
 
     # Log a few random samples from the training set:
     if training_args.do_train:
@@ -607,27 +1067,95 @@ def main():
 
     # Get the metric function
     if data_args.task_name is not None:
-        metric = load_metric("glue", data_args.task_name)
+        metric = load_metric(data_args.benchmark_name, data_args.task_name, trust_remote_code=True)
     else:
         metric = load_metric("accuracy")
 
-    # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
-    # predictions and label_ids field) and has to return a dictionary string to float.
-    def compute_metrics(p: EvalPrediction):
-        preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-        preds = np.squeeze(preds) if is_regression else np.argmax(preds, axis=1)
-        if data_args.task_name is not None:
-            result = metric.compute(predictions=preds, references=p.label_ids)
-            if len(result) > 1:
-                result["combined_score"] = np.mean(list(result.values())).item()
-            return result
-        elif is_regression:
-            return {"mse": ((preds - p.label_ids) ** 2).mean().item()}
-        else:
-            return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
 
-    # Data collator will default to DataCollatorWithPadding, so we change it if we already did the padding.
-    if data_args.pad_to_max_length:
+    if data_args.task_name == 'multirc':
+        def compute_metrics(p):
+            preds = np.argmax(p.predictions, axis=1)
+
+            # p.label_ids should be the true labels, but we also need the idx from the dataset
+            idx_list = eval_dataset['idx']
+
+            pred_dicts = [
+                {"idx": idx, "prediction": int(pred)}
+                for idx, pred in zip(idx_list, preds)
+            ]
+            ref_dicts = [i for i in p.label_ids]
+            return metric.compute(predictions=pred_dicts, references=ref_dicts)
+    elif data_args.task_name == 'record':
+        gold_answers = {
+            frozendict.frozendict(example["idx"]): example["answers"]
+            for example in eval_dataset
+        }
+        unique_idxs = sorted(
+            gold_answers.keys(),
+            key=lambda x: (x["passage"], x["query"])
+        )
+
+        def compute_metrics(eval_pred):
+            logits, labels = eval_pred
+            probs = torch.sigmoid(torch.tensor(logits))
+
+            pred_dict = {}
+            for i, (entities, idx) in enumerate(zip(eval_dataset["entities"], eval_dataset["idx"])):
+                o_idx = frozendict.frozendict(idx)
+
+                # filter out padding logits
+                num_entities = len(entities)
+                if num_entities == 0:
+                    if o_idx not in pred_dict:
+                        pred_dict[o_idx] = ""  # no entities → empty prediction
+                    continue
+
+                ent_probs = probs[i, :num_entities]
+
+                # predict all entities with prob > threshold
+                pred_dict[o_idx] = entities[torch.argmax(ent_probs).item()]
+
+            # Format predictions
+            predictions = [
+                {
+                    "idx": dict(idx),
+                    "prediction_text": pred_dict.get(idx, "")
+                }
+                for idx in unique_idxs
+            ]
+
+            # Format references
+            references = [
+                {
+                    "idx": dict(idx),
+                    "answers": gold_answers.get(idx, [])
+                }
+                for idx in unique_idxs
+            ]
+
+            results = metric.compute(predictions=predictions, references=references)
+            return {"f1": results["f1"], "exact_match": results["exact_match"]}
+
+    else:
+        # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
+        # predictions and label_ids field) and has to return a dictionary string to float.
+        def compute_metrics(p: EvalPrediction):
+            preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+            preds = np.squeeze(preds) if is_regression else np.argmax(preds, axis=1)
+            if data_args.task_name is not None:
+                result = metric.compute(predictions=preds, references=p.label_ids)
+                if len(result) > 1:
+                    result["combined_score"] = np.mean(list(result.values())).item()
+                return result
+            elif is_regression:
+                return {"mse": ((preds - p.label_ids) ** 2).mean().item()}
+            else:
+                return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
+
+
+    if data_args.task_name == 'record':
+        data_collator = record_collator
+    elif data_args.pad_to_max_length:
         data_collator = default_data_collator
     elif training_args.fp16:
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
@@ -636,19 +1164,23 @@ def main():
 
     training_args.save_strategy = 'no'
 
-    from transformers import EarlyStoppingCallback
-
-    eval_fraction = 0.5  # Evaluate after 10% of the dataset
+    #eval_fraction = 0.5  # Evaluate after 10% of the dataset
 
     # Calculate eval_steps
-    print(len(eval_dataset), training_args.per_device_eval_batch_size)
-    eval_steps = max(1, int(len(eval_dataset) * eval_fraction // training_args.per_device_eval_batch_size))
+    #print(len(eval_dataset), training_args.per_device_eval_batch_size)
+    #eval_steps = max(1, int(len(eval_dataset) * eval_fraction // training_args.per_device_eval_batch_size))
+
+    # we evaluate 2 times per epoch
+    n_gpus = torch.cuda.device_count()
+
+    effective_batch_size = training_args.per_device_train_batch_size * n_gpus
+    steps_per_epoch = len(train_dataset) // effective_batch_size
+    eval_steps = steps_per_epoch // 2
+    #eval_steps = 10
 
     print(f"Evaluation steps set to: {eval_steps}")
 
-
     if data_args.early_stopping:
-        raise NotImplementedError("Early stopping not implemented/ properly tested yet")
 
         def copy_and_update_training_args(original_args, **overrides):
             """
@@ -679,10 +1211,15 @@ def main():
             load_best_model_at_end=True,
             metric_for_best_model="eval_loss",
             greater_is_better=False,
+            save_total_limit=1,
         )
+        print("Updated training arguments for early stopping:", training_args)
 
     # Initialize our Trainer
-    trainer = Trainer(
+
+    trainer_cls = Trainer
+
+    trainer = trainer_cls(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -723,12 +1260,26 @@ def main():
         # Loop to handle MNLI double evaluation (matched, mis-matched)
         tasks = [data_args.task_name]
         eval_datasets = [eval_dataset]
+        main_task = data_args.task_name
         if data_args.task_name == "mnli":
             tasks.append("mnli-mm")
             eval_datasets.append(raw_datasets["validation_mismatched"])
             #todo the current approach results in mnli-mm results to be saved in the same file as mnli results,
             # and due to the order the mnli-mm results overwrite the mnli results, but mnli is typically reported in GLUE
             # this is not important if the bootsrap is used as the raw results are used then (with unique file names)
+        elif data_args.task_name == 'cb':
+            # we also evaluate the diagnostic ax.g task
+            tasks.append('axg')
+            axg_dataset = load_dataset('super_glue', 'axg')['test']
+            axg_dataset = preprocess(axg_dataset)
+            eval_datasets.append(axg_dataset)
+            # we also evaluate the diagnostic axb task
+            tasks.append('axb')
+            axb_dataset = load_dataset('super_glue', 'axb')['test']
+            axb_dataset = axb_dataset.rename_column('sentence1', 'premise').rename_column('sentence2', 'hypothesis')
+            axb_dataset = preprocess(axb_dataset)
+            eval_datasets.append(axb_dataset)
+
 
         for eval_dataset, task in zip(eval_datasets, tasks):
             metrics = trainer.evaluate(eval_dataset=eval_dataset)
@@ -742,44 +1293,57 @@ def main():
             metrics['time'] = time.time() - eval_start_time
             metrics['total_time'] = time.time() - start_time
 
-            trainer.log_metrics("eval", metrics)
-            trainer.save_metrics("eval", metrics)
+            name = 'eval'
+            if task != main_task:
+                name += f'_{task}'
+            trainer.log_metrics(name, metrics)
+            trainer.save_metrics(name, metrics)
 
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        # Loop to handle MNLI double evaluation (matched, mis-matched)
-        tasks = [data_args.task_name]
-        predict_datasets = [predict_dataset]
-        if data_args.task_name == "mnli":
-            tasks.append("mnli-mm")
-            predict_datasets.append(raw_datasets["test_mismatched"])
+        if False:
+            # Loop to handle MNLI double evaluation (matched, mis-matched)
+            tasks = [data_args.task_name]
+            predict_datasets = [predict_dataset]
+            if data_args.task_name == "mnli":
+                tasks.append("mnli-mm")
+                predict_datasets.append(raw_datasets["test_mismatched"])
 
-        for predict_dataset, task in zip(predict_datasets, tasks):
-            # Removing the `label` columns because it contains -1 and Trainer won't like that.
-            predict_dataset = predict_dataset.remove_columns("label")
-            predictions = trainer.predict(
-                predict_dataset, metric_key_prefix="predict"
-            ).predictions
-            predictions = (
-                np.squeeze(predictions)
-                if is_regression
-                else np.argmax(predictions, axis=1)
-            )
+            for predict_dataset, task in zip(predict_datasets, tasks):
+                # Removing the `label` columns because it contains -1 and Trainer won't like that.
+                #predict_dataset = predict_dataset.remove_columns("label")
+                predictions = trainer.predict(
+                    predict_dataset, metric_key_prefix="predict"
+                ).predictions
+                predictions = (
+                    np.squeeze(predictions)
+                    if is_regression
+                    else np.argmax(predictions, axis=1)
+                )
 
-            output_predict_file = os.path.join(
-                training_args.output_dir, f"predict_results_{task}.txt"
-            )
-            if trainer.is_world_process_zero():
-                with open(output_predict_file, "w") as writer:
-                    logger.info(f"***** Predict results {task} *****")
-                    writer.write("index\tprediction\n")
-                    for index, item in enumerate(predictions):
-                        if is_regression:
-                            writer.write(f"{index}\t{item:3.3f}\n")
-                        else:
-                            item = label_list[item]
-                            writer.write(f"{index}\t{item}\n")
+                output_predict_file = os.path.join(
+                    training_args.output_dir, f"predict_results_{task}.txt"
+                )
+                if trainer.is_world_process_zero():
+                    with open(output_predict_file, "w") as writer:
+                        logger.info(f"***** Predict results {task} *****")
+                        writer.write("index\tprediction\n")
+                        for index, item in enumerate(predictions):
+                            if is_regression:
+                                writer.write(f"{index}\t{item:3.3f}\n")
+                            elif task == 'record':
+                                entities = predict_dataset["entities"][index]
+                                if len(entities) == 0:
+                                    prediction_text = ""
+                                else:
+                                    ent_probs = torch.sigmoid(torch.tensor(item[:len(entities)]))
+                                    chosen = torch.argmax(ent_probs).item()
+
+                                writer.write(f"{index}\t{prediction_text}\n")
+                            else:
+                                item = label_list[item]
+                                writer.write(f"{index}\t{item}\n")
 
         logger.info("*** Predict Eval ***")
         # Loop to handle MNLI double evaluation (matched, mis-matched)
@@ -788,16 +1352,28 @@ def main():
         if data_args.task_name == "mnli":
             tasks.append("mnli-mm")
             predict_datasets.append(raw_datasets["validation_mismatched"])
+        elif data_args.task_name == 'cb':
+            # we also evaluate the diagnostic ax.g task
+            tasks.append('axg')
+            axg_dataset = load_dataset('super_glue', 'axg')['test']
+            axg_dataset = preprocess(axg_dataset)
+            predict_datasets.append(axg_dataset)
+            # we also evaluate the diagnostic axb task
+            tasks.append('axb')
+            axb_dataset = load_dataset('super_glue', 'axb')['test']
+            axb_dataset = axb_dataset.rename_column('sentence1', 'premise').rename_column('sentence2', 'hypothesis')
+            axb_dataset = preprocess(axb_dataset)
+            predict_datasets.append(axb_dataset)
+
 
         for predict_dataset, task in zip(predict_datasets, tasks):
-            # Removing the `label` columns because it contains -1 and Trainer won't like that.
-            predict_dataset = predict_dataset.remove_columns("label")
+            #predict_dataset = predict_dataset.remove_columns("label")
             predictions = trainer.predict(
                 predict_dataset, metric_key_prefix="predict"
             ).predictions
             predictions = (
                 np.squeeze(predictions)
-                if is_regression
+                if is_regression or task == 'record'
                 else np.argmax(predictions, axis=1)
             )
 
@@ -808,9 +1384,19 @@ def main():
                 with open(output_predict_file, "w") as writer:
                     logger.info(f"***** Eval Predict results {task} *****")
                     writer.write("index\tprediction\n")
-                    for index, item in enumerate(predictions):
+                    for index, item in enumerate(tqdm.tqdm(predictions, desc="Writing predictions")):
                         if is_regression:
-                            writer.write(f"{index}\t{item:3.3f}\n")
+                            writer.write(f"{index}\t{item:3.3}\n")
+                        elif task == 'record':
+                            entities = predict_dataset["entities"][index]
+                            if len(entities) == 0:
+                                prediction_text = ""
+                            else:
+                                ent_probs = torch.sigmoid(torch.tensor(item[:len(entities)]))
+                                chosen = torch.argmax(ent_probs).item()
+                                prediction_text = entities[chosen]
+
+                            writer.write(f"{index}\t{prediction_text}\n")
                         else:
                             item = label_list[item]
                             writer.write(f"{index}\t{item}\n")
@@ -840,6 +1426,16 @@ def main():
         trainer.push_to_hub(**kwargs)
     else:
         trainer.create_model_card(**kwargs)
+
+    if data_args.early_stopping:
+        # remove any checkpoint form the output directory
+        for f in os.listdir(training_args.output_dir):
+            checkpoint_path = os.path.join(training_args.output_dir, f)
+
+            # Check if the directory starts with 'checkpoint-' and is indeed a directory
+            if f.startswith("checkpoint-") and os.path.isdir(checkpoint_path):
+                print(f"Deleting checkpoint: {checkpoint_path}")
+                shutil.rmtree(checkpoint_path)
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)

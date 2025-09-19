@@ -76,7 +76,9 @@ if __name__ == "__main__":
     data = load_inlp_data(args.persistent_dir, args.bias_type, seed=args.seed)
 
     # Load model and tokenizer.
-    model = getattr(models, args.model)(args.model_name_or_path)
+    model = getattr(models, args.model)
+    print('Loaded model', model)
+    model = model(args.model_name_or_path)
     model.eval()
     tokenizer = load_tokenizer(args.model_name_or_path)
 

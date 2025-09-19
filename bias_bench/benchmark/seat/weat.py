@@ -199,6 +199,9 @@ def effect_size(X, Y, A, B, cossims):
         Y, A, B, cossims=cossims
     )
     denominator = stdev_s_wAB(X + Y, A, B, cossims=cossims)
+    if denominator == 0:
+        denominator = 1e-8
+
     return numerator / denominator
 
 

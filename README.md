@@ -10,7 +10,8 @@ The main difference compared to the original repository [bias-bench](https://git
 - added support for other base models (e.g., `distilbert-base-cased`, `roberta-large`, `bert-large-cased`, `microsoft/deberta-v3-large`, `meta-llama/Llama-3.2-3B`, `meta-llama/Llama-3.2-3B-Instruct`)
 - added support for the GRADIEND model evaluation (the training of the GRADIEND models needs to be done in the original GRADIEND repository)
 - added support for RLACE and LEACE debiasing approach, similar to INLP
-- added support for bootstrapping evaluation of all evaluated metrics (SEAT, SS, CrowS, LMS, GLUE)
+- added support for SuperGLUE evaluation
+- added support for bootstrapping evaluation of all evaluated metrics (SEAT, SS, CrowS, LMS, GLUE, SuperGLUE) 
 
 ## Install
 ```bash
@@ -68,9 +69,10 @@ To recreate the experiments performed in the GRADIEND paper, you can run the fol
 * `stereoset_debias.sh` to evaluate the StereoSet benchmark for the debiased models
 * Run `python experiments/stereoset_evaluation.py` to compute the StereoSet metrics for the base and debiased models.
 * `glues.sh` to evaluate GLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
-* `glue_llama.sh` to evaluate GLUE for LLaMA models based on lm-evaluation-harness.
-* Run `python experiments/glue_zero_shot_conversion.py` to convert the GLUE zero shot results to the format expected by bias-bench.
-* Run `python experiments/glue_bootstrap_evaluation.py` to compute the bootstrap metrics for GLUE.
+* `super_glues.sh` to evaluate SuperGLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
+* `glue_llama.sh` to evaluate GLUE and SuperGLUE for LLaMA models based on lm-evaluation-harness in zero-shot setting.
+* Run `python experiments/glue_zero_shot_conversion.py` to convert the LLaMA GLUE and SuperGLUE zero shot results to the format expected by bias-bench.
+* Run `python experiments/glue_bootstrap_evaluation.py` to compute the bootstrap metrics for GLUE and SuperGLUE.
 
 Note that these scripts must be run from the root directory of the project.
 Moreover, before running these scripts, the GRADIEND results must be computed first!
@@ -82,7 +84,7 @@ You may need to adjust the paths in `shell_jobs/_experiment_configuration.sh` to
 * To run INLP models against any of the benchmarks, you will first need to run `experiments/inlp_projection_matrix.py`.
 * `stereoset.sh` and `stereoset_debias.sh` only compute the raw results for StereoSet. To compute the SS metrics, you need to run `experiments/stereoset_evaluation.py`.
 * `glues.sh` only computes the raw results for GLUE and metrics for each sub-score. To compute the bootstrap overall metrics, run `experiments/glue_bootstrap_evaluation.py`.
-* `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`) to generate the result tables presented in the paper. Moreover, `export/rank.py` calculates the mean ranks for all variants on the gender debiasing metrics. 
+* `export` contains the script `bootstrap_results.py` containing functions (`print_main_table()`, `print_full_glue_table()`, `print_full_seat_table()`, ...) to generate the result tables presented in the paper. Moreover, `export/rank.py` calculates the mean ranks for all variants on the debiasing metrics. 
 * The specific behavior of the above mentioned bash scripts can be controlled by modifying the `shell_jobs/_experiment_configuration.sh` file. Important variables include:
   * `seeds`: The random seeds used for the experiments, default is `0 1 2`.
   * `projection_matrix_prefixes`: The prefixes used to identify which projection matrix version is used, i.e., no prefix `""` for the default INLP, `leace_` for LEACE, and `rlace_` for RLACE.

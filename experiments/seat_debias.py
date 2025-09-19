@@ -125,11 +125,16 @@ if __name__ == "__main__":
     model.eval()
     tokenizer = load_tokenizer(args.model_name_or_path)
 
-    output_file = f"{args.persistent_dir}/results/seat/{experiment_id}.json"
+    bias_type = args.bias_type
+    output_file = f"{args.persistent_dir}/results/seat/{bias_type}/{experiment_id}.json"
+
+    tests = args.tests
+    if isinstance(tests, list) and len(tests) == 1 and ' ' in tests[0]:
+        tests = tests[0].split(' ')
 
     runner = SEATRunner(
         experiment_id=experiment_id,
-        tests=args.tests,
+        tests=tests,
         data_dir=f"{args.persistent_dir}/data/seat",
         n_samples=args.n_samples,
         parametric=args.parametric,

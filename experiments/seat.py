@@ -48,6 +48,13 @@ parser.add_argument(
     "model is instantiated.",
 )
 parser.add_argument(
+    "--bias_type",
+    action="store",
+    type=str,
+    choices=["gender", "religion", "race"],
+    help="The type of bias to mitigate.",
+)
+parser.add_argument(
     "--model",
     action="store",
     type=str,
@@ -81,7 +88,8 @@ if __name__ == "__main__":
     model.eval()
     tokenizer = load_tokenizer(args.model_name_or_path)
 
-    output_file = f"{args.persistent_dir}/results/seat/{experiment_id}.json"
+    bias_type = args.bias_type
+    output_file = f"{args.persistent_dir}/results/seat/{bias_type}/{experiment_id}.json"
 
     runner = SEATRunner(
         experiment_id=experiment_id,
@@ -96,6 +104,6 @@ if __name__ == "__main__":
     results = runner()
     print(results)
 
-    os.makedirs(f"{args.persistent_dir}/results/seat", exist_ok=True)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(results, f)
