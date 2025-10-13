@@ -102,7 +102,7 @@ for bias_type in ${bias_types[@]}; do
     for model in "${debiased_models[@]}"; do
         model_id=$(basename "$model")
         echo "Model: $model"
-        if [[ $model == *"dropout"* || $model == *"cda"* ]]; then
+        if [[ $model == *"dropout"* || $model == *"cda"* || $model == *"-N" || $model == *"-F" || $model == *"-M" ]]; then
             # Dropout is the same model for all types of biases
             # CDA has the type of bias already in its name
             echo "Model: $model"

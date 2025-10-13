@@ -938,7 +938,7 @@ def print_full_race_glue_table():
 def print_full_race_super_glue_table():
     data = print_table(
         metrics=[SUPER_GLUE_BOOLQ, SUPER_GLUE_CB, SUPER_GLUE_COPA, SUPER_GLUE_MULTIRC, SUPER_GLUE_RECORD, SUPER_GLUE_RTE, SUPER_GLUE_WIC, SUPER_GLUE_WSC, SUPER_GLUE_AVG],
-        variants=STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
+        variants=RACE_STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
         bias_type='race',
         print_metric_types=True,
     )
@@ -947,7 +947,6 @@ def print_full_religion_glue_table():
     data = print_table(
         metrics=[GLUE_COLA, GLUE_MNLI_M, GLUE_MNLI_MM, GLUE_MRPC, GLUE_QNLI, GLUE_QQP, GLUE_RTE, GLUE_SST2, GLUE_STSB, GLUE_WNLI, GLUE_AVG],
         variants=RELIGION_STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
-        models=[DISTILBERT],
         bias_type='religion',
         print_metric_types=True,
     )
@@ -955,7 +954,7 @@ def print_full_religion_glue_table():
 def print_full_religion_super_glue_table():
     data = print_table(
         metrics=[SUPER_GLUE_BOOLQ, SUPER_GLUE_CB, SUPER_GLUE_COPA, SUPER_GLUE_MULTIRC, SUPER_GLUE_RECORD, SUPER_GLUE_RTE, SUPER_GLUE_WIC, SUPER_GLUE_WSC, SUPER_GLUE_AVG],
-        variants=STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
+        variants=RELIGION_STRUCTURED_VARIANTS_WITHOUT_SELF_DEBIAS,
         bias_type='religion',
         print_metric_types=True,
     )
@@ -1085,17 +1084,12 @@ def print_full_main_religion_table():
 
 
 if __name__ == '__main__':
-    print_full_race_super_glue_table()
-    #print_full_religion_super_glue_table()
 
-    #print_full_race_glue_table()
     #print_full_religion_glue_table()
 
     #print_full_glue_table(glue_type='glue')
-    #print_full_glue_table(glue_type='super_glue')
+    print_full_glue_table(glue_type='super_glue')
 
-    #print_full_main_race_table()
-    #print_full_main_religion_table()
 
     # DONE
     #print_full_main_table()
@@ -1104,3 +1098,8 @@ if __name__ == '__main__':
     #print_full_seat_table()
     #print_full_race_seat_table()
     #print_full_religion_seat_table()
+    #print_full_main_race_table()
+    #print_full_main_religion_table()
+    #print_full_race_glue_table()
+    #print_full_race_super_glue_table()
+    #print_full_religion_super_glue_table()

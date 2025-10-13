@@ -31,6 +31,9 @@ for bias_type in ${bias_types[@]}; do
             for model in ${models[@]}; do
                 echo "Running model ${model}"
                 model_id=$(basename $model)
+                if [[ $model_id == *"-F" || $model_id == *"-M" || $model_id == *"-N" ]]; then
+                    $model_id="${model_id}-gender"
+                fi
                 output_path="${result_dir}/${model_id}/${seed}"
 
                 if [[ ! -d $output_path ]]; then

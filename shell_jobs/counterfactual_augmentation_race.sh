@@ -7,6 +7,7 @@ echo "Using seeds ${seeds[@]}"
 
 models=("bert-base-cased" "bert-large-cased" "roberta-large" "distilbert-base-cased")
 bias_types=("religion" "race")
+
 for seed in ${seeds[@]}; do
   for model in ${models[@]}; do
         for bias_type in ${bias_types[@]}; do

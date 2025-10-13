@@ -222,7 +222,7 @@ if __name__ == '__main__':
         #convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-N-gender', model_type='LlamaInstruct', output_suffix='_t-gender', glue_type=glue_type)
         #convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-F-gender', model_type='LlamaInstruct', output_suffix='_t-gender', glue_type=glue_type)
         #convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-M-gender', model_type='LlamaInstruct', output_suffix='_t-gender', glue_type=glue_type)
-        convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-v5--race_white_asian', model_type='LlamaInstruct', output_suffix='_t-race', glue_type=glue_type)
+        convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-v5-race_white_asian', model_type='LlamaInstruct', output_suffix='_t-race', glue_type=glue_type)
         convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-v5-race_white_black', model_type='LlamaInstruct', output_suffix='_t-race', glue_type=glue_type)
         convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-v5-race_black_asian', model_type='LlamaInstruct', output_suffix='_t-race', glue_type=glue_type)
         convert_model(f'{result_dir}/Llama-3.2-3B-Instruct-v5-religion_christian_jewish', model_type='LlamaInstruct', output_suffix='_t-religion', glue_type=glue_type)
