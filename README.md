@@ -68,8 +68,8 @@ To recreate the experiments performed in the GRADIEND paper, you can run the fol
 * `stereoset.sh` to evaluate the StereoSet benchmark for the base models
 * `stereoset_debias.sh` to evaluate the StereoSet benchmark for the debiased models
 * Run `python experiments/stereoset_evaluation.py` to compute the StereoSet metrics for the base and debiased models.
-* `glues.sh` to evaluate GLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
-* `super_glues.sh` to evaluate SuperGLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
+* `glues.sh "0 1 2"` to evaluate GLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
+* `super_glues.sh "0 1 2"` to evaluate SuperGLUE for all models except for LLaMA (this script will take a long time to run, you may want to split it into multiple sub-scripts)
 * `glue_llama.sh` to evaluate GLUE and SuperGLUE for LLaMA models based on lm-evaluation-harness in zero-shot setting.
 * Run `python experiments/glue_zero_shot_conversion.py` to convert the LLaMA GLUE and SuperGLUE zero shot results to the format expected by bias-bench.
 * Run `python experiments/glue_bootstrap_evaluation.py` to compute the bootstrap metrics for GLUE and SuperGLUE.
