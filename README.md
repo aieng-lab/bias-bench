@@ -22,7 +22,7 @@ conda env create --file environment.yml
 
 Install [`aieng-lab/gradiend-bias`](https://github.com/aieng-lab/gradiend-bias) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
 
-Install [`aieng-lab/lm-eval-harness`]](https://github.com/aieng-lab/lm-eval-harness) for the GLUE zero-shot evaluation of the LLaMA models. 
+Install [`aieng-lab/lm-evaluation-harness`]](https://github.com/aieng-lab/lm-evaluation-harness) for the GLUE zero-shot evaluation of the LLaMA models. 
 
 In order to use Llama-based models, you must first accept the Llama 3.2 Community License Agreement (see e.g., [here](https://huggingface.co/meta-llama/Llama-3.2-3B)). Further, you need to export a variable `HF_TOKEN` with a HF access token associated to your HF account (alternatively, but not recommended, you could insert your HF token in `bias_bench/model/models.py#HF_TOKEN`).
 
