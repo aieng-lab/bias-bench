@@ -3,7 +3,7 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-2502.01406-blue.svg)](https://arxiv.org/abs/2502.01406)
 
-This repository contains the official source code for the evaluation of [GRADIEND: Feature Learning within Neural Networks Exemplified through Biases](https://github.com/aieng-lab/gradiend).
+This repository contains the official source code for the evaluation of [GRADIEND: Feature Learning within Neural Networks Exemplified through Biases](https://github.com/aieng-lab/gradiend-bias).
 
 The main difference compared to the original repository [bias-bench](https://github.com/McGill-NLP/bias-bench) are:
 
@@ -20,7 +20,7 @@ cd bias-bench
 conda env create --file environment.yml
 ```
 
-Install [`aieng-lab/gradiend`](https://github.com/aieng-lab/gradiend) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
+Install [`aieng-lab/gradiend-bias`](https://github.com/aieng-lab/gradiend-bias) for the GRADIEND model training. Both repositories should be in the same root directory (e.g., `/root/bias-bench` and `/root/gradiend`).
 
 Install [`aieng-lab/lm-eval-harness`]](https://github.com/aieng-lab/lm-eval-harness) for the GLUE zero-shot evaluation of the LLaMA models. 
 
